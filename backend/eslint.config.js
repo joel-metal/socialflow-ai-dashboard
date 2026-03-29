@@ -9,6 +9,21 @@ module.exports = [
   {
     ignores: ['dist/**', 'node_modules/**', 'coverage/**'],
   },
+  // Prevent new files being added directly to src/routes/ (except the legacy
+  // v1 aggregator which is being migrated — see backend/docs/architecture.md).
+  {
+    files: ['src/routes/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Program',
+          message:
+            'src/routes/ is frozen. Add new routes inside src/modules/<feature>/routes.ts instead (see backend/docs/architecture.md).',
+        },
+      ],
+    },
+  },
   {
     files: ['src/**/*.ts'],
     languageOptions: {
