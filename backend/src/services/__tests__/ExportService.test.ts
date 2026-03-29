@@ -1,4 +1,5 @@
 import { ExportService } from '../ExportService';
+import { paginatedQuery } from '../../lib/paginatedQuery';
 import { prisma } from '../../lib/prisma';
 import { Response } from 'express';
 import { PassThrough } from 'stream';
@@ -244,5 +245,120 @@ describe('pagination boundaries', () => {
     expect(prisma.post.findMany).toHaveBeenNthCalledWith(2,
       expect.objectContaining({ cursor: { id: 'post-0999' }, skip: 1 }),
     );
+  });
+});
+
+// ── paginatedQuery iterator smoke tests ──────────────────────────────────────
+
+describe('paginatedQuery', () => {
+  function makeFindMany(pages: Array<Array<{ id: string }>>) {
+    let call = 0;
+    return jest.fn(async () => pages[call++] ?? []);
+  }
+
+  it('yields nothing for empty result', async () => {
+    const fn = makeFindMany([[]]);
+    const results: { id: string }[] = [];
+    for await (const row of paginatedQuery(fn)) results.push(row);
+    expect(results).toHaveLength(0);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('yields all records from a single page smaller than BATCH_SIZE', async () => {
+    const page = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    const fn = makeFindMany([page]);
+    const results: { id: string }[] = [];
+    for await (const row of paginatedQuery(fn)) results.push(row);
+    expect(results.map((r) => r.id)).toEqual(['a', 'b', 'c']);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('strips sentinel and advances cursor across two pages', async () => {
+    const page1 = Array.from({ length: BATCH_SIZE + 1 }, (_, i) => ({ id: `r-${i}` }));
+    const page2 = [{ id: 'last' }];
+    const fn = makeFindMany([page1, page2]);
+    const results: { id: string }[] = [];
+    for await (const row of paginatedQuery(fn)) results.push(row);
+    expect(results).toHaveLength(BATCH_SIZE + 1);
+    expect(results.map((r) => r.id)).not.toContain(`r-${BATCH_SIZE}`); // sentinel gone
+    expect(fn).toHaveBeenNthCalledWith(2, expect.objectContaining({ cursor: { id: 'r-999' }, skip: 1 }));
+  });
+
+  it('first call uses no cursor and skip=0', async () => {
+    const fn = makeFindMany([[]]);
+    for await (const _ of paginatedQuery(fn)) { /* drain */ }
+    expect(fn).toHaveBeenCalledWith(expect.objectContaining({ cursor: undefined, skip: 0 }));
+  });
+
+  it('orderBy is always { id: asc }', async () => {
+    const fn = makeFindMany([[]]);
+    for await (const _ of paginatedQuery(fn)) { /* drain */ }
+    expect(fn).toHaveBeenCalledWith(expect.objectContaining({ orderBy: { id: 'asc' } }));
+  });
+
+  it('take is always BATCH_SIZE + 1', async () => {
+    const fn = makeFindMany([[]]);
+    for await (const _ of paginatedQuery(fn)) { /* drain */ }
+    expect(fn).toHaveBeenCalledWith(expect.objectContaining({ take: BATCH_SIZE + 1 }));
+  });
+});
+
+// ── Per-method smoke tests (regression against refactor) ─────────────────────
+
+describe('streamAnalyticsAsCSV — smoke', () => {
+  it('emits correct CSV row format', async () => {
+    const row = analyticsRow('smoke-1');
+    (prisma.analyticsEntry.findMany as jest.Mock)
+      .mockResolvedValueOnce([row])
+      .mockResolvedValueOnce([]);
+    const { res, output } = makeRes();
+    await ExportService.streamAnalyticsAsCSV('org-1', START, END, res);
+    const body = await output();
+    expect(body).toContain('smoke-1,"org-1","twitter","impressions",1,');
+  });
+});
+
+describe('streamAnalyticsAsJSON — smoke', () => {
+  it('emits valid JSON Lines', async () => {
+    (prisma.analyticsEntry.findMany as jest.Mock).mockReset();
+    const row = analyticsRow('smoke-2');
+    (prisma.analyticsEntry.findMany as jest.Mock)
+      .mockResolvedValueOnce([row])
+      .mockResolvedValueOnce([]);
+    const { res, output } = makeRes();
+    await ExportService.streamAnalyticsAsJSON('org-1', START, END, res);
+    const body = await output();
+    const lines = body.split('\n').filter(Boolean);
+    expect(() => JSON.parse(lines[0])).not.toThrow();
+    expect(JSON.parse(lines[0]).id).toBe('smoke-2');
+  });
+});
+
+describe('streamPostsAsCSV — smoke', () => {
+  it('emits correct CSV row format', async () => {
+    const row = postRow('smoke-3');
+    (prisma.post.findMany as jest.Mock)
+      .mockResolvedValueOnce([row])
+      .mockResolvedValueOnce([]);
+    const { res, output } = makeRes();
+    await ExportService.streamPostsAsCSV('org-1', START, END, res);
+    const body = await output();
+    expect(body).toContain('smoke-3,"org-1","hello","twitter"');
+  });
+});
+
+describe('streamPostsAsJSON — smoke', () => {
+  it('emits valid JSON Lines', async () => {
+    (prisma.post.findMany as jest.Mock).mockReset();
+    const row = postRow('smoke-4');
+    (prisma.post.findMany as jest.Mock)
+      .mockResolvedValueOnce([row])
+      .mockResolvedValueOnce([]);
+    const { res, output } = makeRes();
+    await ExportService.streamPostsAsJSON('org-1', START, END, res);
+    const body = await output();
+    const lines = body.split('\n').filter(Boolean);
+    expect(() => JSON.parse(lines[0])).not.toThrow();
+    expect(JSON.parse(lines[0]).id).toBe('smoke-4');
   });
 });
