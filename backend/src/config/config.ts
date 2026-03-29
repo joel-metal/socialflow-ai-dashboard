@@ -9,7 +9,8 @@ const envSchema = z.object({
   BACKEND_PORT: z.coerce.number().int().positive().default(3001),
 
   // ── Database ──────────────────────────────────────────────────────────────
-  DATABASE_URL: z.url('DATABASE_URL must be a valid URL'),
+  DATABASE_URL: z.string().url('DATABASE_URL must be a valid URL'),
+  DATABASE_REPLICA_URL: z.string().url('DATABASE_REPLICA_URL must be a valid URL').optional(),
   // Connection pool — defaults tuned per environment in src/lib/prisma.ts
   // Override here to hard-pin values regardless of NODE_ENV.
   DB_CONNECTION_LIMIT: z.coerce.number().int().positive().optional(),
