@@ -1,0 +1,12 @@
+# Cert-Manager installation via upstream manifest.
+# Pin to a specific version for reproducibility.
+# To apply: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
+#
+# This file documents the install source. The actual CRDs, webhook, and
+# controller are managed by the upstream release manifest referenced above.
+# Run the following once per cluster before applying any ClusterIssuer:
+#
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
+#
+# Verify all pods are running before proceeding:
+#   kubectl get pods -n cert-manager

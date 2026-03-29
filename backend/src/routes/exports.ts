@@ -4,13 +4,40 @@ import { ExportService } from '../services/ExportService';
 const router = Router();
 
 /**
- * GET /api/exports/analytics
- * Stream analytics data as CSV or JSON
- * Query params:
- *   organizationId {string} Required - Organization ID
- *   format {string} Required - 'csv' or 'json'
- *   startDate {string} Required - ISO date string
- *   endDate {string} Required - ISO date string
+ * @openapi
+ * /exports/analytics:
+ *   get:
+ *     tags: [Exports]
+ *     summary: Stream analytics data as CSV or JSON
+ *     parameters:
+ *       - in: query
+ *         name: organizationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: format
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [csv, json]
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *     responses:
+ *       200:
+ *         description: Streamed analytics data
+ *       400:
+ *         description: Validation error
  */
 router.get('/analytics', async (req: Request, res: Response) => {
   try {
@@ -53,13 +80,40 @@ router.get('/analytics', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/exports/posts
- * Stream posts data as CSV or JSON
- * Query params:
- *   organizationId {string} Required - Organization ID
- *   format {string} Required - 'csv' or 'json'
- *   startDate {string} Required - ISO date string
- *   endDate {string} Required - ISO date string
+ * @openapi
+ * /exports/posts:
+ *   get:
+ *     tags: [Exports]
+ *     summary: Stream posts data as CSV or JSON
+ *     parameters:
+ *       - in: query
+ *         name: organizationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: format
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [csv, json]
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *     responses:
+ *       200:
+ *         description: Streamed posts data
+ *       400:
+ *         description: Validation error
  */
 router.get('/posts', async (req: Request, res: Response) => {
   try {

@@ -1,0 +1,20 @@
+# Non-sensitive runtime configuration.
+# Sensitive values (DATABASE_URL, JWT_SECRET, etc.) go in socialflow-secrets.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: socialflow-config
+data:
+  NODE_ENV: "production"
+  BACKEND_PORT: "3001"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  JWT_EXPIRES_IN: "15m"
+  JWT_REFRESH_EXPIRES_IN: "7d"
+  LOG_LEVEL: "info"
+  OTEL_SERVICE_NAME: "socialflow-backend"
+  OTEL_EXPORTER: "otlp"
+  DATA_RETENTION_MODE: "archive"
+  DATA_PRUNING_CRON: "0 2 * * *"
+  DATA_RETENTION_LOG_DAYS: "30"
+  DATA_RETENTION_ANALYTICS_DAYS: "90"

@@ -1,7 +1,8 @@
 import winston from 'winston';
 import { getRequestId } from '../middleware/requestId';
+import { config } from '../config/config';
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = config.NODE_ENV === 'production';
 
 // ---------------------------------------------------------------------------
 // Base transports — console always on, file logs in production
@@ -21,7 +22,7 @@ const transports: winston.transport[] = [
 // Uses winston-elasticsearch which ships logs as structured JSON documents,
 // making them immediately searchable in Kibana.
 // ---------------------------------------------------------------------------
-if (process.env.ELASTICSEARCH_URL) {
+if (config.ELASTICSEARCH_URL) {
   try {
     // Dynamic require so the app still boots if the package isn't installed
     // (e.g. local dev without the dep).
@@ -29,12 +30,12 @@ if (process.env.ELASTICSEARCH_URL) {
     const { ElasticsearchTransport } = require('winston-elasticsearch');
 
     const esTransport = new ElasticsearchTransport({
-      level: process.env.LOG_LEVEL ?? 'info',
+      level: config.LOG_LEVEL,
       indexPrefix: process.env.ELASTICSEARCH_INDEX_PREFIX ?? 'socialflow-logs',
       // Rotate index daily: socialflow-logs-YYYY.MM.DD
       indexSuffixPattern: 'YYYY.MM.DD',
       clientOpts: {
-        node: process.env.ELASTICSEARCH_URL,
+        node: config.ELASTICSEARCH_URL,
         auth:
           process.env.ELASTICSEARCH_USERNAME && process.env.ELASTICSEARCH_PASSWORD
             ? {
@@ -54,8 +55,8 @@ if (process.env.ELASTICSEARCH_URL) {
         message: logData.message,
         fields: logData.meta ?? {},
         service: {
-          name: process.env.OTEL_SERVICE_NAME ?? 'socialflow-backend',
-          environment: process.env.NODE_ENV ?? 'development',
+          name: config.OTEL_SERVICE_NAME,
+          environment: config.NODE_ENV,
         },
       }),
     });
@@ -78,7 +79,7 @@ if (process.env.ELASTICSEARCH_URL) {
 // Winston instance
 // ---------------------------------------------------------------------------
 const winstonLogger = winston.createLogger({
-  level: process.env.LOG_LEVEL ?? 'info',
+  level: config.LOG_LEVEL,
   format: isProduction
     ? winston.format.combine(winston.format.timestamp(), winston.format.json())
     : winston.format.combine(

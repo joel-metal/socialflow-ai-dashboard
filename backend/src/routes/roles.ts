@@ -14,24 +14,44 @@ const assignSchema = z.object({
 });
 
 /**
- * GET /api/roles
- * List all available roles and their permissions.
+ * @openapi
+ * /roles:
+ *   get:
+ *     tags: [Roles]
+ *     summary: List all available roles and their permissions
+ *     responses:
+ *       200:
+ *         description: Role list
  */
 router.get('/', authMiddleware, (_req: Request, res: Response) => {
   return res.json(Object.values(ROLES));
 });
 
 /**
- * GET /api/roles/permissions
- * List all available permissions.
+ * @openapi
+ * /roles/permissions:
+ *   get:
+ *     tags: [Roles]
+ *     summary: List all available permissions
+ *     responses:
+ *       200:
+ *         description: Permission list
  */
 router.get('/permissions', authMiddleware, (_req: Request, res: Response) => {
   return res.json(PERMISSIONS);
 });
 
 /**
- * GET /api/roles/assignments
- * List all user→role assignments. Requires: users:read
+ * @openapi
+ * /roles/assignments:
+ *   get:
+ *     tags: [Roles]
+ *     summary: List all user→role assignments (requires users:read permission)
+ *     responses:
+ *       200:
+ *         description: Role assignments
+ *       403:
+ *         description: Forbidden
  */
 router.get(
   '/assignments',
@@ -43,8 +63,14 @@ router.get(
 );
 
 /**
- * GET /api/roles/me
- * Returns the current user's role and permissions.
+ * @openapi
+ * /roles/me:
+ *   get:
+ *     tags: [Roles]
+ *     summary: Get the current user's role and permissions
+ *     responses:
+ *       200:
+ *         description: Current user role
  */
 router.get('/me', authMiddleware, (req: AuthRequest, res: Response) => {
   const role = RoleStore.getRole(req.userId!);
@@ -53,8 +79,31 @@ router.get('/me', authMiddleware, (req: AuthRequest, res: Response) => {
 });
 
 /**
- * POST /api/roles/assign
- * Assign a role to a user. Requires: roles:manage
+ * @openapi
+ * /roles/assign:
+ *   post:
+ *     tags: [Roles]
+ *     summary: Assign a role to a user (requires roles:manage permission)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [userId, role]
+ *             properties:
+ *               userId:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *                 enum: [admin, editor, viewer]
+ *     responses:
+ *       200:
+ *         description: Role assigned
+ *       404:
+ *         description: User not found
+ *       403:
+ *         description: Forbidden
  */
 router.post(
   '/assign',
@@ -72,8 +121,24 @@ router.post(
 );
 
 /**
- * DELETE /api/roles/assign/:userId
- * Remove a user's role (demotes to viewer). Requires: roles:manage
+ * @openapi
+ * /roles/assign/{userId}:
+ *   delete:
+ *     tags: [Roles]
+ *     summary: Remove a user's role (demotes to viewer, requires roles:manage)
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       204:
+ *         description: Role removed
+ *       404:
+ *         description: No role assignment found
+ *       403:
+ *         description: Forbidden
  */
 router.delete(
   '/assign/:userId',

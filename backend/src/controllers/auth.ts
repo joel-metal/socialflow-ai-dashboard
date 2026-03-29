@@ -7,21 +7,14 @@ import { auditLogger } from '../services/AuditLogger';
 import { PasswordHistoryService } from '../services/PasswordHistoryService';
 import { AuthBlacklistService } from '../services/AuthBlacklistService';
 import { prisma } from '../lib/prisma';
+import { config } from '../config/config';
 
 const SALT_ROUNDS = 12;
 
-function jwtSecret() {
-  return process.env.JWT_SECRET ?? 'change-me-in-production';
-}
-function jwtExpiresIn() {
-  return process.env.JWT_EXPIRES_IN ?? '15m';
-}
-function jwtRefreshSecret() {
-  return process.env.JWT_REFRESH_SECRET ?? 'refresh-change-me-in-production';
-}
-function jwtRefreshExpiresIn() {
-  return process.env.JWT_REFRESH_EXPIRES_IN ?? '7d';
-}
+const jwtSecret = () => config.JWT_SECRET;
+const jwtExpiresIn = () => config.JWT_EXPIRES_IN;
+const jwtRefreshSecret = () => config.JWT_REFRESH_SECRET;
+const jwtRefreshExpiresIn = () => config.JWT_REFRESH_EXPIRES_IN;
 
 function signAccess(userId: string): string {
   return jwt.sign({ sub: userId }, jwtSecret(), { expiresIn: jwtExpiresIn() } as jwt.SignOptions);

@@ -43,6 +43,7 @@ model Organization {
   members   OrganizationMember[]
   posts     Post[]
   analytics AnalyticsEntry[]
+  listings  Listing[]
 
   @@index([slug])
   @@index([createdAt])
@@ -103,19 +104,37 @@ model DynamicConfig {
   updatedAt   DateTime @updatedAt
 }
 
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  action     String
+  resource   String?
+  resourceId String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([resource, resourceId])
+}
+
 model Listing {
-  id          String    @id @default(uuid())
-  title       String
-  description String
-  price       Float?
-  isActive    Boolean   @default(true)
-  mentorId    String
-  mentor      User      @relation("MentorListings", fields: [mentorId], references: [id])
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  id             String        @id @default(uuid())
+  title          String
+  description    String
+  price          Float?
+  isActive       Boolean       @default(true)
+  mentorId       String
+  mentor         User          @relation("MentorListings", fields: [mentorId], references: [id])
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
 
   @@index([mentorId])
+  @@index([organizationId])
   @@index([isActive])
   @@index([createdAt])
   @@index([deletedAt])

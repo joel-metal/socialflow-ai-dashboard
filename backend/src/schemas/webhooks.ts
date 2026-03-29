@@ -10,6 +10,13 @@ export const SUPPORTED_EVENTS = [
   'tiktok.video_processing',
   'tiktok.video_published',
   'tiktok.video_failed',
+  // Twitter Account Activity API events
+  'twitter.follow',
+  'twitter.unfollow',
+  'twitter.mention',
+  'twitter.dm',
+  'twitter.like',
+  'twitter.tweet_delete',
 ] as const;
 
 export type WebhookEventType = (typeof SUPPORTED_EVENTS)[number];

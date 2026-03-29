@@ -1,5 +1,6 @@
 import { createLogger } from '../lib/logger';
-import { AuditLog, AuditLogStore, AuditAction } from '../models/AuditLog';
+import { prisma } from '../lib/prisma';
+import { AuditAction } from '../models/AuditLog';
 
 const logger = createLogger('audit');
 
@@ -20,16 +21,28 @@ export interface AuditContext {
  *   auditLogger.log({ actorId: userId, action: 'post:delete', resourceType: 'post', resourceId: id });
  */
 class AuditLogger {
-  log(ctx: AuditContext): AuditLog {
-    const entry = AuditLogStore.append(ctx);
-    logger.info('audit', {
-      id: entry.id,
-      actorId: entry.actorId,
-      action: entry.action,
-      resourceType: entry.resourceType,
-      resourceId: entry.resourceId,
-    });
-    return entry;
+  async log(ctx: AuditContext): Promise<void> {
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: ctx.actorId,
+          action: ctx.action,
+          resource: ctx.resourceType,
+          resourceId: ctx.resourceId,
+          metadata: ctx.metadata ?? undefined,
+          ipAddress: ctx.ip,
+          userAgent: ctx.userAgent,
+        },
+      });
+      logger.info('audit', {
+        actorId: ctx.actorId,
+        action: ctx.action,
+        resourceType: ctx.resourceType,
+        resourceId: ctx.resourceId,
+      });
+    } catch (err) {
+      logger.error('audit:write:failed', { err });
+    }
   }
 }
 

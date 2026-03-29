@@ -3,16 +3,47 @@ import { PrismaClient } from '@prisma/client';
 import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { softDeleteMiddleware } from '../middleware/prismaSoftDelete';
 import { applyReadWriteSplitting } from './readReplica';
+import { config } from '../config/config';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 const tracer = trace.getTracer('socialflow-db');
 
 // Models that should be scoped to an organization
-const ORG_SCOPED_MODELS = new Set(['Post', 'AnalyticsEntry']);
+const ORG_SCOPED_MODELS = new Set(['Post', 'AnalyticsEntry', 'Listing']);
+
+/**
+ * Pool sizing defaults:
+ *   development — small pool, fast feedback on connection leaks
+ *   production  — sized for concurrent request handling
+ *                 Rule of thumb: (2 × num_cores) + 1, capped at 20 for PgBouncer compat
+ *
+ * Both values can be overridden via DB_CONNECTION_LIMIT / DB_POOL_TIMEOUT env vars.
+ */
+const POOL_DEFAULTS = {
+  development: { connection_limit: 5,  pool_timeout: 10 },
+  test:        { connection_limit: 2,  pool_timeout: 10 },
+  production:  { connection_limit: 10, pool_timeout: 20 },
+} as const;
+
+function buildDatasourceUrl(): string {
+  const base = config.DATABASE_URL;
+  const env = config.NODE_ENV;
+  const defaults = POOL_DEFAULTS[env];
+
+  const connectionLimit = config.DB_CONNECTION_LIMIT ?? defaults.connection_limit;
+  const poolTimeout     = config.DB_POOL_TIMEOUT     ?? defaults.pool_timeout;
+
+  const url = new URL(base);
+  url.searchParams.set('connection_limit', String(connectionLimit));
+  url.searchParams.set('pool_timeout',     String(poolTimeout));
+  return url.toString();
+}
 
 function createInstrumentedPrisma(): PrismaClient {
-  const client = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
+  // Prisma v7 reads DATABASE_URL from the environment; inject pool params before construction
+  process.env.DATABASE_URL = buildDatasourceUrl();
+  const client = new PrismaClient();
 
   // Soft delete: convert deletes to updates and filter out deleted records
   client.$use(softDeleteMiddleware);

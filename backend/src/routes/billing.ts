@@ -21,8 +21,22 @@ const portalSchema = z.object({
 });
 
 /**
- * POST /api/billing/provision
- * Provision a Stripe customer + free subscription for the authenticated user.
+ * @openapi
+ * /billing/provision:
+ *   post:
+ *     tags: [Billing]
+ *     summary: Provision a Stripe customer and free subscription for the authenticated user
+ *     responses:
+ *       201:
+ *         description: Subscription provisioned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Subscription'
+ *       404:
+ *         description: User not found
+ *       502:
+ *         description: Stripe error
  */
 router.post('/provision', authMiddleware, async (req: AuthRequest, res: Response) => {
   const user = UserStore.findById(req.userId!);
@@ -38,8 +52,20 @@ router.post('/provision', authMiddleware, async (req: AuthRequest, res: Response
 });
 
 /**
- * GET /api/billing/subscription
- * Get the current user's subscription and credit balance.
+ * @openapi
+ * /billing/subscription:
+ *   get:
+ *     tags: [Billing]
+ *     summary: Get the current user's subscription and credit balance
+ *     responses:
+ *       200:
+ *         description: Subscription details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Subscription'
+ *       404:
+ *         description: No subscription found
  */
 router.get('/subscription', authMiddleware, (req: AuthRequest, res: Response) => {
   const sub = SubscriptionStore.findByUserId(req.userId!);
@@ -49,8 +75,14 @@ router.get('/subscription', authMiddleware, (req: AuthRequest, res: Response) =>
 });
 
 /**
- * GET /api/billing/credits
- * Get the current user's credit log.
+ * @openapi
+ * /billing/credits:
+ *   get:
+ *     tags: [Billing]
+ *     summary: Get the current user's credit log
+ *     responses:
+ *       200:
+ *         description: Credit log entries
  */
 router.get('/credits', authMiddleware, (req: AuthRequest, res: Response) => {
   const logs = CreditLogStore.forUser(req.userId!);
@@ -58,8 +90,38 @@ router.get('/credits', authMiddleware, (req: AuthRequest, res: Response) => {
 });
 
 /**
- * POST /api/billing/checkout
- * Create a Stripe Checkout session for upgrading to a paid plan.
+ * @openapi
+ * /billing/checkout:
+ *   post:
+ *     tags: [Billing]
+ *     summary: Create a Stripe Checkout session for upgrading to a paid plan
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [priceId, successUrl, cancelUrl]
+ *             properties:
+ *               priceId:
+ *                 type: string
+ *               successUrl:
+ *                 type: string
+ *                 format: uri
+ *               cancelUrl:
+ *                 type: string
+ *                 format: uri
+ *     responses:
+ *       200:
+ *         description: Checkout session URL
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 url: { type: string, format: uri }
+ *       502:
+ *         description: Stripe error
  */
 router.post(
   '/checkout',
@@ -83,8 +145,33 @@ router.post(
 );
 
 /**
- * POST /api/billing/portal
- * Create a Stripe Customer Portal session.
+ * @openapi
+ * /billing/portal:
+ *   post:
+ *     tags: [Billing]
+ *     summary: Create a Stripe Customer Portal session
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [returnUrl]
+ *             properties:
+ *               returnUrl:
+ *                 type: string
+ *                 format: uri
+ *     responses:
+ *       200:
+ *         description: Portal session URL
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 url: { type: string, format: uri }
+ *       502:
+ *         description: Stripe error
  */
 router.post(
   '/portal',
@@ -103,8 +190,30 @@ router.post(
 );
 
 /**
- * POST /api/billing/webhook
- * Stripe webhook endpoint — must use raw body (no JSON parsing).
+ * @openapi
+ * /billing/webhook:
+ *   post:
+ *     tags: [Billing]
+ *     summary: Stripe webhook receiver (raw body, HMAC-verified)
+ *     security: []
+ *     parameters:
+ *       - in: header
+ *         name: stripe-signature
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/octet-stream:
+ *           schema:
+ *             type: string
+ *             format: binary
+ *     responses:
+ *       200:
+ *         description: Event received
+ *       400:
+ *         description: Missing signature or invalid payload
  */
 router.post('/webhook', async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'] as string;

@@ -1,0 +1,50 @@
+import { Request, Response, NextFunction } from 'express';
+import { httpRequestDuration, sliBreachTotal, SLI_BUDGETS, resolveCategory } from '../lib/metrics';
+import { createLogger } from '../lib/logger';
+
+const logger = createLogger('sli');
+
+export function sliMiddleware(req: Request, res: Response, next: NextFunction): void {
+  const start = Date.now();
+
+  res.on('finish', () => {
+    const durationMs = Date.now() - start;
+    const path = req.route?.path ?? req.path;
+    const category = resolveCategory(req.originalUrl);
+    const labels = {
+      method: req.method,
+      route: path,
+      status_code: String(res.statusCode),
+      category,
+    };
+
+    httpRequestDuration.observe(labels, durationMs);
+
+    const budget = SLI_BUDGETS[category];
+    if (!budget) return;
+
+    if (durationMs > budget.p99) {
+      sliBreachTotal.inc({ category, percentile: 'p99' });
+      logger.warn('SLI p99 breach', {
+        category,
+        durationMs,
+        budget: budget.p99,
+        method: req.method,
+        path: req.originalUrl,
+        statusCode: res.statusCode,
+      });
+    } else if (durationMs > budget.p95) {
+      sliBreachTotal.inc({ category, percentile: 'p95' });
+      logger.warn('SLI p95 breach', {
+        category,
+        durationMs,
+        budget: budget.p95,
+        method: req.method,
+        path: req.originalUrl,
+        statusCode: res.statusCode,
+      });
+    }
+  });
+
+  next();
+}

@@ -7,6 +7,10 @@ import { TYPES } from '../config/inversify.config';
 class HealthService {
   private healthMonitor?: HealthMonitor;
   private failureCounters: Map<string, number> = new Map();
+  /** Overridable for testing — defaults to Math.random */
+  random: () => number = Math.random;
+  /** Overridable for testing — defaults to current ISO timestamp */
+  now: () => string = () => new Date().toISOString();
 
   constructor(@inject(TYPES.HealthMonitor) @optional() healthMonitor?: HealthMonitor) {
     this.healthMonitor = healthMonitor;
@@ -19,17 +23,15 @@ class HealthService {
   /**
    * Helper function to simulate a latency check.
    */
-  private async simulateCheck(
+  private simulateCheck(
     serviceName: string,
     baseLatency: number,
-  ): Promise<{ status: string; latency: number; lastChecked: string; errorRate: number }> {
-    const latency = baseLatency + Math.floor(Math.random() * 20);
-    // Simulate delay
-    await new Promise((resolve) => setTimeout(resolve, latency));
+  ): { status: string; latency: number; lastChecked: string; errorRate: number } {
+    const latency = baseLatency + Math.floor(this.random() * 20);
 
     // Simulate occasional unhealthy for Twitter
-    const isUnhealthy = serviceName === 'twitter' && Math.random() < 0.2;
-    const errorRate = isUnhealthy ? Math.random() * 30 : Math.random() * 2;
+    const isUnhealthy = serviceName === 'twitter' && this.random() < 0.2;
+    const errorRate = isUnhealthy ? this.random() * 30 : this.random() * 2;
 
     if (isUnhealthy) {
       const counter = (this.failureCounters.get(serviceName) || 0) + 1;
@@ -42,32 +44,32 @@ class HealthService {
       status: isUnhealthy ? 'unhealthy' : 'healthy',
       latency,
       errorRate,
-      lastChecked: new Date().toISOString(),
+      lastChecked: this.now(),
     };
   }
 
-  public async checkDatabase() {
+  public checkDatabase() {
     return this.simulateCheck('database', 10);
   }
 
-  public async checkRedis() {
+  public checkRedis() {
     return this.simulateCheck('redis', 5);
   }
 
-  public async checkS3() {
+  public checkS3() {
     return this.simulateCheck('s3', 15);
   }
 
-  public async checkTwitterAPI() {
+  public checkTwitterAPI() {
     return this.simulateCheck('twitter', 50);
   }
 
   public async getSystemStatus() {
     const [database, redis, s3, twitter] = await Promise.all([
-      this.checkDatabase(),
-      this.checkRedis(),
-      this.checkS3(),
-      this.checkTwitterAPI(),
+      Promise.resolve(this.checkDatabase()),
+      Promise.resolve(this.checkRedis()),
+      Promise.resolve(this.checkS3()),
+      Promise.resolve(this.checkTwitterAPI()),
     ]);
 
     const dependencies = { database, redis, s3, twitter };

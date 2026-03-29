@@ -1,0 +1,88 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: socialflow-prod
+
+resources:
+  - ../../base
+
+# Pin the image to a CI-injected tag.
+# In CI, run: kustomize edit set image socialflow-backend=<registry>/socialflow-backend:<git-sha>
+images:
+  - name: socialflow-backend
+    newName: socialflow-backend
+    newTag: latest  # overridden by CI: kustomize edit set image socialflow-backend=<registry>/socialflow-backend:<git-sha>
+
+patches:
+  # 3 replicas, production-grade resources
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: socialflow-backend
+      spec:
+        replicas: 3
+        template:
+          spec:
+            containers:
+              - name: backend
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 512Mi
+                  limits:
+                    cpu: 1000m
+                    memory: 1Gi
+  # Always pull the image in production to prevent stale cached images
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: socialflow-backend
+      spec:
+        template:
+          spec:
+            containers:
+              - name: backend
+                imagePullPolicy: Always
+  # HPA: 3–20 replicas in prod
+  - patch: |-
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: socialflow-backend
+      spec:
+        minReplicas: 3
+        maxReplicas: 20
+  # PDB: require at least 2 pods available in prod
+  - patch: |-
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: socialflow-backend
+      spec:
+        minAvailable: 2
+  # Prod hostname + TLS
+  - patch: |-
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: socialflow-backend
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+      spec:
+        rules:
+          - host: api.socialflow.example.com
+            http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: socialflow-backend
+                      port:
+                        name: http
+        tls:
+          - hosts:
+              - api.socialflow.example.com
+            secretName: socialflow-tls

@@ -9,14 +9,29 @@ const logger = createLogger('SSE');
 const JWT_SECRET = () => process.env.JWT_SECRET ?? 'change-me-in-production';
 
 /**
- * GET /api/realtime/stream
- *
- * Server-Sent Events stream for real-time job progress.
- *
- * Auth: Bearer token via Authorization header OR ?token= query param
- * (query param needed because browser EventSource can't set headers).
- *
- * Reconnection: browser auto-reconnects using Last-Event-ID.
+ * @openapi
+ * /realtime/stream:
+ *   get:
+ *     tags: [Realtime]
+ *     summary: Server-Sent Events stream for real-time job progress
+ *     description: |
+ *       Streams `job_progress` events for the authenticated user.
+ *       Pass the JWT as `?token=<jwt>` because browser `EventSource` cannot set headers.
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         schema:
+ *           type: string
+ *         description: JWT access token (alternative to Authorization header)
+ *     responses:
+ *       200:
+ *         description: SSE stream (text/event-stream)
+ *         content:
+ *           text/event-stream:
+ *             schema:
+ *               type: string
+ *       401:
+ *         description: Missing or invalid token
  */
 router.get('/stream', (req: AuthRequest, res: Response) => {
   // Accept token from header or query param

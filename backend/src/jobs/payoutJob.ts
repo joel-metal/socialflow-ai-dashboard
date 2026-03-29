@@ -11,7 +11,7 @@ export async function processPayoutJob(job: Job<PayoutJobData>) {
     groupId,
     amount,
     recipient,
-    recipientType: _recipientType,
+    recipientType,
     currency,
     description: _description,
     metadata,

@@ -6,8 +6,14 @@ import { twitterService } from '../services/TwitterService';
 const router = Router();
 
 /**
- * GET /api/circuit-breaker/status
- * Get status of all circuit breakers
+ * @openapi
+ * /circuit-breaker/status:
+ *   get:
+ *     tags: [Circuit Breaker]
+ *     summary: Get status of all circuit breakers
+ *     responses:
+ *       200:
+ *         description: Circuit breaker stats
  */
 router.get('/status', (req: Request, res: Response) => {
   try {
@@ -26,8 +32,23 @@ router.get('/status', (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/circuit-breaker/status/:service
- * Get status of a specific circuit breaker
+ * @openapi
+ * /circuit-breaker/status/{service}:
+ *   get:
+ *     tags: [Circuit Breaker]
+ *     summary: Get status of a specific circuit breaker
+ *     parameters:
+ *       - in: path
+ *         name: service
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [ai, twitter, translation]
+ *     responses:
+ *       200:
+ *         description: Circuit breaker status
+ *       404:
+ *         description: Circuit breaker not found
  */
 router.get('/status/:service', (req: Request, res: Response) => {
   try {
@@ -47,8 +68,14 @@ router.get('/status/:service', (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/circuit-breaker/reset
- * Reset all circuit breakers
+ * @openapi
+ * /circuit-breaker/reset:
+ *   post:
+ *     tags: [Circuit Breaker]
+ *     summary: Reset all circuit breakers
+ *     responses:
+ *       200:
+ *         description: All circuit breakers reset
  */
 router.post('/reset', (req: Request, res: Response) => {
   try {
@@ -66,8 +93,21 @@ router.post('/reset', (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/circuit-breaker/:service/open
- * Manually open a circuit breaker
+ * @openapi
+ * /circuit-breaker/{service}/open:
+ *   post:
+ *     tags: [Circuit Breaker]
+ *     summary: Manually open a circuit breaker
+ *     parameters:
+ *       - in: path
+ *         name: service
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [ai, twitter, translation]
+ *     responses:
+ *       200:
+ *         description: Circuit breaker opened
  */
 router.post('/:service/open', (req: Request, res: Response) => {
   try {
@@ -86,8 +126,21 @@ router.post('/:service/open', (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/circuit-breaker/:service/close
- * Manually close a circuit breaker
+ * @openapi
+ * /circuit-breaker/{service}/close:
+ *   post:
+ *     tags: [Circuit Breaker]
+ *     summary: Manually close a circuit breaker
+ *     parameters:
+ *       - in: path
+ *         name: service
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [ai, twitter, translation]
+ *     responses:
+ *       200:
+ *         description: Circuit breaker closed
  */
 router.post('/:service/close', (req: Request, res: Response) => {
   try {
@@ -106,8 +159,17 @@ router.post('/:service/close', (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/circuit-breaker/health
- * Health check for all protected services
+ * @openapi
+ * /circuit-breaker/health:
+ *   get:
+ *     tags: [Circuit Breaker]
+ *     summary: Health check for all circuit-breaker-protected services
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: All services healthy
+ *       503:
+ *         description: One or more circuits are open
  */
 router.get('/health', async (req: Request, res: Response) => {
   try {

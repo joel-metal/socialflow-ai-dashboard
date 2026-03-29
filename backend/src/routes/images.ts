@@ -30,8 +30,53 @@ const upload = multer({
 });
 
 /**
- * POST /api/images/upload
- * Upload and optimize image
+ * @openapi
+ * /images/upload:
+ *   post:
+ *     tags: [Images]
+ *     summary: Upload and optimize an image
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [image]
+ *             properties:
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Image file (jpeg, png, webp, gif — max 50 MB)
+ *     parameters:
+ *       - in: query
+ *         name: width
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: height
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: quality
+ *         schema:
+ *           type: integer
+ *           default: 80
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [webp, jpeg, png]
+ *           default: webp
+ *     responses:
+ *       200:
+ *         description: Optimized image binary
+ *         content:
+ *           image/*:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: No image provided
  */
 router.post('/upload', upload.single('image'), async (req: Request, res: Response) => {
   try {
@@ -64,9 +109,47 @@ router.post('/upload', upload.single('image'), async (req: Request, res: Respons
 });
 
 /**
- * GET /api/images/proxy
- * Proxy and optimize image from file path
- * Query: path (required), width, height, quality, format
+ * @openapi
+ * /images/proxy:
+ *   get:
+ *     tags: [Images]
+ *     summary: Proxy and optimize an image from a file path
+ *     parameters:
+ *       - in: query
+ *         name: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Relative path under uploads/
+ *       - in: query
+ *         name: width
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: height
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: quality
+ *         schema:
+ *           type: integer
+ *           default: 80
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [webp, jpeg, png]
+ *           default: webp
+ *     responses:
+ *       200:
+ *         description: Optimized image binary
+ *         content:
+ *           image/*:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: Missing or invalid path
  */
 router.get('/proxy', async (req: Request, res: Response) => {
   try {
@@ -108,8 +191,14 @@ router.get('/proxy', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/images/cache/size
- * Get cache size
+ * @openapi
+ * /images/cache/size:
+ *   get:
+ *     tags: [Images]
+ *     summary: Get image cache size
+ *     responses:
+ *       200:
+ *         description: Cache size in bytes and MB
  */
 router.get('/cache/size', async (req: Request, res: Response) => {
   try {
@@ -121,8 +210,14 @@ router.get('/cache/size', async (req: Request, res: Response) => {
 });
 
 /**
- * DELETE /api/images/cache
- * Clear cache
+ * @openapi
+ * /images/cache:
+ *   delete:
+ *     tags: [Images]
+ *     summary: Clear the image optimization cache
+ *     responses:
+ *       200:
+ *         description: Cache cleared
  */
 router.delete('/cache', async (req: Request, res: Response) => {
   try {

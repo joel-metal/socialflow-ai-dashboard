@@ -6,9 +6,32 @@ import { parsePageLimit, buildPageResponse } from '../utils/pagination';
 const router = Router();
 
 /**
- * GET /api/audit
- * Returns the most recent audit log entries (admin view).
- * Query: page (default 1), limit (default 20, max 100)
+ * @openapi
+ * /audit:
+ *   get:
+ *     tags: [Audit]
+ *     summary: List recent audit log entries (admin view)
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *           maximum: 100
+ *     responses:
+ *       200:
+ *         description: Paged audit log
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PagedResponse'
+ *       401:
+ *         description: Unauthorized
  */
 router.get('/', authMiddleware, (req: Request, res: Response) => {
   const params = parsePageLimit(req);
@@ -20,8 +43,25 @@ router.get('/', authMiddleware, (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/audit/me
- * Returns audit log entries for the authenticated user.
+ * @openapi
+ * /audit/me:
+ *   get:
+ *     tags: [Audit]
+ *     summary: List audit log entries for the authenticated user
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Paged audit log for current user
  */
 router.get('/me', authMiddleware, (req: AuthRequest, res: Response) => {
   const params = parsePageLimit(req);
@@ -33,8 +73,25 @@ router.get('/me', authMiddleware, (req: AuthRequest, res: Response) => {
 });
 
 /**
- * GET /api/audit/resource/:type/:id
- * Returns audit log entries for a specific resource.
+ * @openapi
+ * /audit/resource/{type}/{id}:
+ *   get:
+ *     tags: [Audit]
+ *     summary: List audit log entries for a specific resource
+ *     parameters:
+ *       - in: path
+ *         name: type
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Audit log entries for the resource
  */
 router.get('/resource/:type/:id', authMiddleware, (req: Request, res: Response) => {
   return res.json(AuditLogStore.forResource(req.params.type, req.params.id));

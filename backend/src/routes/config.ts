@@ -9,9 +9,16 @@ const router = Router();
 const adminOnly = [authMiddleware, checkPermission('settings:manage')];
 
 /**
- * @route GET /api/config
- * @desc Get all configuration values from cache
- * @access Admin
+ * @openapi
+ * /config:
+ *   get:
+ *     tags: [Config]
+ *     summary: Get all dynamic configuration values (admin)
+ *     responses:
+ *       200:
+ *         description: Configuration map
+ *       401:
+ *         description: Unauthorized
  */
 router.get('/', adminOnly, async (_req: Request, res: Response) => {
   try {
@@ -49,9 +56,38 @@ router.post('/refresh', adminOnly, async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * @route PUT /api/config/:key
- * @desc Update or create a configuration value
- * @access Admin
+ * @openapi
+ * /config/{key}:
+ *   put:
+ *     tags: [Config]
+ *     summary: Update or create a configuration value (admin)
+ *     parameters:
+ *       - in: path
+ *         name: key
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [value]
+ *             properties:
+ *               value: {}
+ *               type:
+ *                 type: string
+ *                 enum: [string, number, boolean, json]
+ *               description:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Configuration updated
+ *       400:
+ *         description: Value is required
+ *       401:
+ *         description: Unauthorized
  */
 router.put('/:key', adminOnly, async (req: AuthRequest, res: Response) => {
   const { key } = req.params;

@@ -94,6 +94,10 @@ export const errorHandler = (
       path: req.path,
       method: req.method,
     });
+    // In non-production, surface the original message for easier debugging
+    if (!isProduction) {
+      message = err.message || message;
+    }
   }
 
   // Build error response

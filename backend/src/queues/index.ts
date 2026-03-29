@@ -1,6 +1,29 @@
 // Queue exports
 export { queueManager, QueueManager, redisConnection } from './queueManager';
 export {
+  aiQueue,
+  enqueueAIJob,
+  scheduleAIJob,
+  getAIQueueStats,
+  getFailedAIJobs,
+  retryFailedAIJob,
+  AI_QUEUE_NAME,
+  AIJobData,
+  AIJobType,
+} from './aiQueue';
+export {
+  socialQueue,
+  enqueueSocialJob,
+  scheduleSocialPost,
+  getSocialQueueStats,
+  getFailedSocialJobs,
+  retryFailedSocialJob,
+  SOCIAL_QUEUE_NAME,
+  SocialJobData,
+  SocialJobType,
+  SocialPlatform,
+} from './socialQueue';
+export {
   emailQueue,
   sendEmail,
   sendBulkEmails,

@@ -142,6 +142,17 @@ export const CIRCUIT_CONFIGS = {
     volumeThreshold: 3,
     name: 'tiktok-service',
   } as CircuitBreakerConfig,
+
+  // LinkedIn Marketing Developer Platform
+  linkedin: {
+    timeout: 15000, // 15 seconds
+    errorThresholdPercentage: 50,
+    resetTimeout: 60000, // 1 minute cooldown
+    rollingCountTimeout: 20000,
+    rollingCountBuckets: 10,
+    volumeThreshold: 3,
+    name: 'linkedin-service',
+  } as CircuitBreakerConfig,
 };
 
 /**
@@ -183,5 +194,9 @@ export const FALLBACK_STRATEGIES = {
   tiktok: {
     enabled: false,
     message: 'TikTok API unavailable. Please try again later.',
+  },
+  linkedin: {
+    enabled: false,
+    message: 'LinkedIn API unavailable. Please try again later.',
   },
 };

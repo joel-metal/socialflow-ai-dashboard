@@ -4,8 +4,14 @@ import { jobMonitor, JobStatus } from '../services/jobMonitor';
 const router = Router();
 
 /**
- * GET /jobs/stats
- * Get system-wide job statistics
+ * @openapi
+ * /jobs/stats:
+ *   get:
+ *     tags: [Jobs]
+ *     summary: Get system-wide job statistics
+ *     responses:
+ *       200:
+ *         description: Job statistics
  */
 router.get('/jobs/stats', async (_req: Request, res: Response) => {
   try {
@@ -18,8 +24,14 @@ router.get('/jobs/stats', async (_req: Request, res: Response) => {
 });
 
 /**
- * GET /jobs/queues
- * Get list of all queue names
+ * @openapi
+ * /jobs/queues:
+ *   get:
+ *     tags: [Jobs]
+ *     summary: List all queue names
+ *     responses:
+ *       200:
+ *         description: Queue names
  */
 router.get('/jobs/queues', (_req: Request, res: Response) => {
   try {
@@ -32,8 +44,22 @@ router.get('/jobs/queues', (_req: Request, res: Response) => {
 });
 
 /**
- * GET /jobs/:queue/stats
- * Get statistics for a specific queue
+ * @openapi
+ * /jobs/{queue}/stats:
+ *   get:
+ *     tags: [Jobs]
+ *     summary: Get statistics for a specific queue
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Queue statistics
+ *       404:
+ *         description: Queue not found
  */
 router.get('/jobs/:queue/stats', async (req: Request, res: Response) => {
   try {
@@ -52,8 +78,36 @@ router.get('/jobs/:queue/stats', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /jobs/:queue/jobs
- * Get jobs from a queue with optional status filter
+ * @openapi
+ * /jobs/{queue}/jobs:
+ *   get:
+ *     tags: [Jobs]
+ *     summary: Get jobs from a queue with optional status filter
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [waiting, active, completed, failed, delayed, paused]
+ *           default: waiting
+ *       - in: query
+ *         name: start
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *       - in: query
+ *         name: end
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Job list
  */
 router.get('/jobs/:queue/jobs', async (req: Request, res: Response) => {
   try {
@@ -71,8 +125,46 @@ router.get('/jobs/:queue/jobs', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /jobs/:queue/jobs/:jobId
- * Get a specific job by ID
+ * @openapi
+ * /jobs/{queue}/jobs/{jobId}:
+ *   get:
+ *     tags: [Jobs]
+ *     summary: Get a specific job by ID
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Job details
+ *       404:
+ *         description: Job not found
+ *   delete:
+ *     tags: [Jobs]
+ *     summary: Remove a specific job
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Job removed
+ *       400:
+ *         description: Failed to remove job
  */
 router.get('/jobs/:queue/jobs/:jobId', async (req: Request, res: Response) => {
   try {
@@ -91,8 +183,30 @@ router.get('/jobs/:queue/jobs/:jobId', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /jobs/:queue/failed
- * Get failed jobs from a queue
+ * @openapi
+ * /jobs/{queue}/failed:
+ *   get:
+ *     tags: [Jobs]
+ *     summary: Get failed jobs from a queue
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: start
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *       - in: query
+ *         name: end
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Failed jobs
  */
 router.get('/jobs/:queue/failed', async (req: Request, res: Response) => {
   try {
@@ -109,8 +223,27 @@ router.get('/jobs/:queue/failed', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /jobs/:queue/jobs/:jobId/retry
- * Retry a specific job
+ * @openapi
+ * /jobs/{queue}/jobs/{jobId}/retry:
+ *   post:
+ *     tags: [Jobs]
+ *     summary: Retry a specific job
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Retry initiated
+ *       400:
+ *         description: Failed to retry
  */
 router.post('/jobs/:queue/jobs/:jobId/retry', async (req: Request, res: Response) => {
   try {
@@ -129,8 +262,20 @@ router.post('/jobs/:queue/jobs/:jobId/retry', async (req: Request, res: Response
 });
 
 /**
- * POST /jobs/:queue/retry-all
- * Retry all failed jobs in a queue
+ * @openapi
+ * /jobs/{queue}/retry-all:
+ *   post:
+ *     tags: [Jobs]
+ *     summary: Retry all failed jobs in a queue
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Jobs retried
  */
 router.post('/jobs/:queue/retry-all', async (req: Request, res: Response) => {
   try {
@@ -165,8 +310,20 @@ router.delete('/jobs/:queue/jobs/:jobId', async (req: Request, res: Response) =>
 });
 
 /**
- * POST /jobs/:queue/pause
- * Pause a queue
+ * @openapi
+ * /jobs/{queue}/pause:
+ *   post:
+ *     tags: [Jobs]
+ *     summary: Pause a queue
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Queue paused
  */
 router.post('/jobs/:queue/pause', async (req: Request, res: Response) => {
   try {
@@ -185,8 +342,20 @@ router.post('/jobs/:queue/pause', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /jobs/:queue/resume
- * Resume a queue
+ * @openapi
+ * /jobs/{queue}/resume:
+ *   post:
+ *     tags: [Jobs]
+ *     summary: Resume a paused queue
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Queue resumed
  */
 router.post('/jobs/:queue/resume', async (req: Request, res: Response) => {
   try {
@@ -205,8 +374,20 @@ router.post('/jobs/:queue/resume', async (req: Request, res: Response) => {
 });
 
 /**
- * DELETE /jobs/:queue/clear
- * Clear all jobs from a queue
+ * @openapi
+ * /jobs/{queue}/clear:
+ *   delete:
+ *     tags: [Jobs]
+ *     summary: Clear all jobs from a queue
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Queue cleared
  */
 router.delete('/jobs/:queue/clear', async (req: Request, res: Response) => {
   try {
@@ -225,8 +406,18 @@ router.delete('/jobs/:queue/clear', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /jobs/events
- * Get SSE endpoint for real-time job events
+ * @openapi
+ * /jobs/events:
+ *   get:
+ *     tags: [Jobs]
+ *     summary: SSE stream for real-time job events
+ *     responses:
+ *       200:
+ *         description: SSE stream (text/event-stream)
+ *         content:
+ *           text/event-stream:
+ *             schema:
+ *               type: string
  */
 router.get('/jobs/events', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');

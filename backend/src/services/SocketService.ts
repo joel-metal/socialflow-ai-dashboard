@@ -4,6 +4,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import jwt from 'jsonwebtoken';
 import { createLogger } from '../lib/logger';
+import { config } from '../config/config';
 
 const logger = createLogger('SocketService');
 
@@ -40,9 +41,7 @@ export class SocketService {
     });
 
     // Configure Redis Adapter
-    const host = process.env.REDIS_HOST || 'localhost';
-    const port = parseInt(process.env.REDIS_PORT || '6379', 10);
-    const pubClient = new Redis({ host, port });
+    const pubClient = new Redis({ host: config.REDIS_HOST, port: config.REDIS_PORT });
     const subClient = pubClient.duplicate();
     this.io.adapter(createAdapter(pubClient, subClient));
 
@@ -55,7 +54,7 @@ export class SocketService {
         return next(new Error('Authentication error'));
       }
       try {
-        const secret = process.env.JWT_SECRET || 'secret'; // Use existing JWT secret from environment
+        const secret = config.JWT_SECRET;
         const decoded = jwt.verify(token, secret);
         socket.user = decoded;
         next();

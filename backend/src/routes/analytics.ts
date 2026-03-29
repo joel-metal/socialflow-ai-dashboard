@@ -1,15 +1,45 @@
 import { Router, Request, Response } from 'express';
 
 /**
- * GET /api/analytics
- * Returns aggregated analytics stored in the client-side DB via a lightweight
- * proxy. In production this would query a server-side DB; for now it delegates
- * to the frontend AnalyticsService through IPC or returns a structured stub.
- *
- * Query params:
- *   platform  {string}  Filter by platform (twitter|linkedin|instagram|tiktok)
- *   from      {number}  Unix ms — start of date range
- *   to        {number}  Unix ms — end of date range
+ * @openapi
+ * /analytics:
+ *   get:
+ *     tags: [Analytics]
+ *     summary: Get aggregated analytics
+ *     parameters:
+ *       - in: query
+ *         name: platform
+ *         schema:
+ *           type: string
+ *           enum: [twitter, linkedin, instagram, tiktok]
+ *         description: Filter by platform
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: integer
+ *         description: Start of date range (Unix ms)
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: integer
+ *         description: End of date range (Unix ms)
+ *     responses:
+ *       200:
+ *         description: Analytics filters acknowledged
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string }
+ *                 filters:
+ *                   type: object
+ *                   properties:
+ *                     platform: { type: string, nullable: true }
+ *                     from: { type: integer, nullable: true }
+ *                     to: { type: integer, nullable: true }
+ *       400:
+ *         description: Invalid query parameters
  */
 const router = Router();
 

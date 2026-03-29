@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { parsePageLimit, toSkipTake, buildPageResponse } from '../utils/pagination';
+import { withCache, invalidateCache, invalidateCachePattern, CacheTTL } from '../utils/cache';
 
 /** POST /api/organizations — create a new org, caller becomes owner */
 export async function createOrganization(req: AuthRequest, res: Response): Promise<void> {
@@ -26,42 +27,52 @@ export async function createOrganization(req: AuthRequest, res: Response): Promi
     include: { members: true },
   });
 
+  // Invalidate the caller's org list cache
+  await invalidateCachePattern(`org-list:${req.userId!}:*`);
+
   res.status(201).json(org);
 }
 
 /** GET /api/organizations — list orgs the caller belongs to */
 export async function listOrganizations(req: AuthRequest, res: Response): Promise<void> {
   const params = parsePageLimit(req);
-  const where = { userId: req.userId! };
+  const userId = req.userId!;
+  const cacheKey = `org-list:${userId}:${params.page}:${params.limit}`;
 
-  const [total, memberships] = await Promise.all([
-    prisma.organizationMember.count({ where }),
-    prisma.organizationMember.findMany({
-      where,
-      include: { organization: true },
-      ...toSkipTake(params),
-    }),
-  ]);
+  const result = await withCache(cacheKey, CacheTTL.ORG_LIST, async () => {
+    const where = { userId };
+    const [total, memberships] = await Promise.all([
+      prisma.organizationMember.count({ where }),
+      prisma.organizationMember.findMany({
+        where,
+        include: { organization: true },
+        ...toSkipTake(params),
+      }),
+    ]);
+    const data = memberships.map((m: (typeof memberships)[number]) => ({
+      ...m.organization,
+      role: m.role,
+    }));
+    return buildPageResponse(req, data, total, params);
+  });
 
-  const data = memberships.map((m: (typeof memberships)[number]) => ({
-    ...m.organization,
-    role: m.role,
-  }));
-  res.json(buildPageResponse(req, data, total, params));
+  res.json(result);
 }
 
 /** GET /api/organizations/:orgId — get a single org (must be a member) */
 export async function getOrganization(req: AuthRequest, res: Response): Promise<void> {
   const { orgId } = req.params;
 
-  const membership = await prisma.organizationMember.findUnique({
-    where: { organizationId_userId: { organizationId: orgId, userId: req.userId! } },
-    include: {
-      organization: {
-        include: { members: { include: { user: { select: { id: true, email: true } } } } },
+  const membership = await withCache(`org:${orgId}:${req.userId}`, CacheTTL.ORG, () =>
+    prisma.organizationMember.findUnique({
+      where: { organizationId_userId: { organizationId: orgId, userId: req.userId! } },
+      include: {
+        organization: {
+          include: { members: { include: { user: { select: { id: true, email: true } } } } },
+        },
       },
-    },
-  });
+    }),
+  );
 
   if (!membership) {
     res.status(404).json({ message: 'Organization not found' });
@@ -89,6 +100,12 @@ export async function addMember(req: AuthRequest, res: Response): Promise<void> 
     data: { id: randomUUID(), organizationId: orgId, userId, role },
   });
 
+  // Invalidate org cache for all affected users
+  await Promise.all([
+    invalidateCachePattern(`org:${orgId}:*`),
+    invalidateCachePattern(`org-list:${userId}:*`),
+  ]);
+
   res.status(201).json(member);
 }
 
@@ -107,6 +124,12 @@ export async function removeMember(req: AuthRequest, res: Response): Promise<voi
   await prisma.organizationMember.delete({
     where: { organizationId_userId: { organizationId: orgId, userId } },
   });
+
+  // Invalidate org cache for the removed user and the org itself
+  await Promise.all([
+    invalidateCachePattern(`org:${orgId}:*`),
+    invalidateCachePattern(`org-list:${userId}:*`),
+  ]);
 
   res.status(204).send();
 }
