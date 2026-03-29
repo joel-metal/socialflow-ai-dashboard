@@ -254,6 +254,14 @@ Current platform-by-capability implementation status for analytics integrations 
 
 - `backend/docs/analytics-integration-status.md`
 
+**All logic for data retention is located in `backend/src/services/DataRetentionService.ts`.**
+
+---
+
+## Security
+
+Please report any security vulnerabilities by following our [Security Policy](./SECURITY.md).
+
 Use that matrix as the source of truth for whether each platform capability is **implemented**, **partial**, or **planned**, including owner paths and roadmap links.
 
 ---
