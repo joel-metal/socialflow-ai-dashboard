@@ -32,4 +32,17 @@ module.exports = [
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
+  {
+    files: ['src/**/*Example.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Program',
+          message:
+            'Example files (*Example.ts) are not allowed in src/. Move them to examples/.',
+        },
+      ],
+    },
+  },
 ];
