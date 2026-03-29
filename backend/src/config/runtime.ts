@@ -47,6 +47,8 @@ export interface DataRetentionConfig {
   logsPaths: string[];
   analyticsPaths: string[];
   queueName: string;
+  missingPathPolicy: 'warn' | 'fail' | 'ignore';
+  missingPathAlertThreshold: number;
 }
 
 export const getAdminIpWhitelist = (): string[] =>
@@ -65,4 +67,6 @@ export const getDataRetentionConfig = (): DataRetentionConfig => ({
   logsPaths: parsePathList(process.env.DATA_RETENTION_LOG_PATHS, ['logs']),
   analyticsPaths: parsePathList(process.env.DATA_RETENTION_ANALYTICS_PATHS, ['data/analytics']),
   queueName: process.env.DATA_PRUNING_QUEUE ?? 'data-pruning',
+  missingPathPolicy: config.DATA_RETENTION_MISSING_PATH_POLICY,
+  missingPathAlertThreshold: config.DATA_RETENTION_MISSING_PATH_ALERT_THRESHOLD,
 });

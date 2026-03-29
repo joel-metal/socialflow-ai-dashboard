@@ -66,6 +66,8 @@ DB_POOL_TIMEOUT=30       # seconds to wait for a free connection before erroring
 | `DATA_PRUNING_CRON`             | `0 2 * * *`                         | Cron schedule for data pruning                                           |
 | `DATA_RETENTION_LOG_DAYS`       | `30`                                | Log retention in days                                                    |
 | `DATA_RETENTION_ANALYTICS_DAYS` | `90`                                | Analytics retention in days                                              |
+| `DATA_RETENTION_MISSING_PATH_POLICY` | `warn`                         | What to do when a retention path is missing: `warn` \| `fail` \| `ignore` |
+| `DATA_RETENTION_MISSING_PATH_ALERT_THRESHOLD` | `3`               | Fire an alert when missing-path count reaches this value in a single run |
 
 ### Social / third-party integrations (all optional)
 
