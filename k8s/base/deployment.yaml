@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: socialflow-backend
+spec:
+  selector:
+    matchLabels:
+      app: socialflow-backend
+  template:
+    metadata:
+      labels:
+        app: socialflow-backend
+    spec:
+      serviceAccountName: socialflow-backend
+      automountServiceAccountToken: false
+      containers:
+        - name: backend
+          image: socialflow-backend:latest
