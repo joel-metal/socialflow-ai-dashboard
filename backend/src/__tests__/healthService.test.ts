@@ -3,119 +3,488 @@ process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
 process.env.JWT_SECRET = 'test-secret-that-is-at-least-32-chars!!';
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-32-chars!!!!!';
-process.env.TWITTER_API_KEY = 'test-key';
-process.env.TWITTER_API_SECRET = 'test-secret';
+process.env.TWITTER_BEARER_TOKEN = 'test-bearer-token';
 
 // Mock the transitive dependency chain so only healthService.ts is exercised
 jest.mock('../services/healthMonitor', () => ({ HealthMonitor: jest.fn() }));
 jest.mock('../config/inversify.config', () => ({ TYPES: { HealthMonitor: Symbol('HealthMonitor') } }));
 
+// Mock Prisma client
+jest.mock('../lib/prisma', () => ({
+  prisma: {
+    $queryRaw: jest.fn().mockResolvedValue([{ '1': 1 }]),
+    $disconnect: jest.fn(),
+  },
+}));
+
+// Mock Redis client
+jest.mock('../lib/redis', () => ({
+  redis: {
+    ping: jest.fn().mockResolvedValue('PONG'),
+    disconnect: jest.fn(),
+  },
+}));
+
+// Mock global fetch
+global.fetch = jest.fn();
+
 import 'reflect-metadata';
 import { HealthService } from '../services/healthService';
+import { prisma } from '../lib/prisma';
+import { redis } from '../lib/redis';
 
-const FIXED_NOW = '2026-03-28T11:51:39.970Z';
-
-/**
- * Build a HealthService with a controlled random sequence and fixed clock.
- *
- * Call pattern per service (short-circuit matters!):
- *   non-twitter: 2 calls — [latency, errorRate]
- *   twitter:     3 calls — [latency, isUnhealthy, errorRate]
- * getSystemStatus order: database, redis, s3, twitter → indices 0-1, 2-3, 4-5, 6-8
- */
-function makeService(randomValues: number[], monitor?: any): HealthService {
-  let idx = 0;
+function makeService(monitor?: any): HealthService {
   const svc = new HealthService();
-  svc.random = () => randomValues[idx++ % randomValues.length];
-  svc.now = () => FIXED_NOW;
   if (monitor) svc.setHealthMonitor(monitor);
   return svc;
 }
 
-describe('HealthService — deterministic unit tests', () => {
-  describe('checkDatabase / checkRedis / checkS3', () => {
-    it('returns healthy with correct latency and errorRate', () => {
-      // random() = 0.5 → latency = 10 + floor(0.5*20) = 20; errorRate = 0.5*2 = 1
-      const svc = makeService([0.5, 0.5]);
-      expect(svc.checkDatabase()).toEqual({
-        status: 'healthy',
-        latency: 20,
-        errorRate: 1,
-        lastChecked: FIXED_NOW,
-      });
+describe('HealthService — real dependency probes', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('checkDatabase', () => {
+    it('returns healthy when database connection succeeds', async () => {
+      (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '1': 1 }]);
+
+      const svc = makeService();
+      const result = await svc.checkDatabase();
+
+      expect(result.status).toBe('healthy');
+      expect(result.latency).toBeGreaterThanOrEqual(0);
+      expect(result.error).toBeUndefined();
+      expect(prisma.$queryRaw).toHaveBeenCalled();
     });
 
-    it('non-twitter services are always healthy regardless of random values', () => {
-      const svc = makeService([0.1, 0.1]);
-      expect(svc.checkRedis().status).toBe('healthy');
-      expect(svc.checkS3().status).toBe('healthy');
+    it('returns degraded on first failure and unhealthy on third consecutive failure', async () => {
+      (prisma.$queryRaw as jest.Mock).mockRejectedValue(new Error('Connection refused'));
+
+      const svc = makeService();
+
+      // First failure → degraded
+      let result = await svc.checkDatabase();
+      expect(result.status).toBe('degraded');
+      expect(result.error).toBe('Connection refused');
+
+      // Second failure → degraded
+      result = await svc.checkDatabase();
+      expect(result.status).toBe('degraded');
+
+      // Third failure → unhealthy
+      result = await svc.checkDatabase();
+      expect(result.status).toBe('unhealthy');
+    });
+
+    it('resets failure counter on successful probe', async () => {
+      const svc = makeService();
+
+      // Force 3 failures
+      (prisma.$queryRaw as jest.Mock).mockRejectedValueOnce(new Error('Failed'));
+      await svc.checkDatabase();
+      await svc.checkDatabase();
+      await svc.checkDatabase();
+
+      // Success resets counter
+      (prisma.$queryRaw as jest.Mock).mockResolvedValueOnce([{ '1': 1 }]);
+      const result = await svc.checkDatabase();
+      expect(result.status).toBe('healthy');
+
+      // Next failure is degraded again (counter = 0 after success)
+      (prisma.$queryRaw as jest.Mock).mockRejectedValueOnce(new Error('Failed'));
+      const nextResult = await svc.checkDatabase();
+      expect(nextResult.status).toBe('degraded');
+    });
+
+    it('respects timeout setting', async () => {
+      const svc = makeService();
+      svc.setDependencyTimeout('database', 100); // 100ms timeout
+
+      // Mock a slow query that times out
+      (prisma.$queryRaw as jest.Mock).mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve([{ '1': 1 }]), 500)),
+      );
+
+      const result = await svc.checkDatabase();
+      expect(result.status).toBe('degraded');
+      expect(result.error).toContain('timed out');
+    });
+  });
+
+  describe('checkRedis', () => {
+    it('returns healthy when redis ping succeeds', async () => {
+      (redis.ping as jest.Mock).mockResolvedValue('PONG');
+
+      const svc = makeService();
+      const result = await svc.checkRedis();
+
+      expect(result.status).toBe('healthy');
+      expect(result.latency).toBeGreaterThanOrEqual(0);
+      expect(redis.ping).toHaveBeenCalled();
+    });
+
+    it('returns degraded on first failure', async () => {
+      (redis.ping as jest.Mock).mockRejectedValue(new Error('Connection timeout'));
+
+      const svc = makeService();
+      const result = await svc.checkRedis();
+
+      expect(result.status).toBe('degraded');
+      expect(result.error).toBe('Connection timeout');
+    });
+
+    it('becomes unhealthy after 3 consecutive failures', async () => {
+      (redis.ping as jest.Mock).mockRejectedValue(new Error('ECONNREFUSED'));
+
+      const svc = makeService();
+      let result;
+
+      for (let i = 1; i <= 3; i++) {
+        result = await svc.checkRedis();
+        const expectedStatus = i < 3 ? 'degraded' : 'unhealthy';
+        expect(result.status).toBe(expectedStatus);
+      }
+    });
+  });
+
+  describe('checkS3', () => {
+    it('returns degraded when S3 is not configured', async () => {
+      const originalAwsKey = process.env.AWS_ACCESS_KEY_ID;
+      delete process.env.AWS_ACCESS_KEY_ID;
+
+      try {
+        const svc = makeService();
+        const result = await svc.checkS3();
+
+        expect(result.status).toBe('degraded');
+        expect(result.error).toContain('not configured');
+      } finally {
+        process.env.AWS_ACCESS_KEY_ID = originalAwsKey;
+      }
+    });
+
+    it('returns healthy when S3 bucket is accessible', async () => {
+      process.env.AWS_ACCESS_KEY_ID = 'test-key';
+      process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+      process.env.AWS_S3_BUCKET = 'test-bucket';
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        status: 200,
+        ok: true,
+      });
+
+      const svc = makeService();
+      const result = await svc.checkS3();
+
+      expect(result.status).toBe('healthy');
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('test-bucket'),
+        expect.objectContaining({ method: 'HEAD' }),
+      );
+    });
+
+    it('returns degraded when S3 bucket not configured', async () => {
+      process.env.AWS_ACCESS_KEY_ID = 'test-key';
+      process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+      delete process.env.AWS_S3_BUCKET;
+
+      const svc = makeService();
+      const result = await svc.checkS3();
+
+      expect(result.status).toBe('degraded');
+      expect(result.error).toContain('AWS_S3_BUCKET');
+    });
+
+    it('accepts 403 and 404 as connectivity indicators', async () => {
+      process.env.AWS_ACCESS_KEY_ID = 'test-key';
+      process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+      process.env.AWS_S3_BUCKET = 'test-bucket';
+
+      const svc = makeService();
+
+      // 403 Forbidden
+      (global.fetch as jest.Mock).mockResolvedValueOnce({ status: 403, ok: false });
+      let result = await svc.checkS3();
+      expect(result.status).toBe('healthy');
+
+      // 404 Not Found
+      (global.fetch as jest.Mock).mockResolvedValueOnce({ status: 404, ok: false });
+      result = await svc.checkS3();
+      expect(result.status).toBe('healthy');
+    });
+
+    it('returns unhealthy after 3 S3 failures', async () => {
+      process.env.AWS_ACCESS_KEY_ID = 'test-key';
+      process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+      process.env.AWS_S3_BUCKET = 'test-bucket';
+
+      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+
+      const svc = makeService();
+      let result;
+
+      for (let i = 1; i <= 3; i++) {
+        result = await svc.checkS3();
+        const expectedStatus = i < 3 ? 'degraded' : 'unhealthy';
+        expect(result.status).toBe(expectedStatus);
+      }
     });
   });
 
   describe('checkTwitterAPI', () => {
-    it('returns healthy when isUnhealthy call >= 0.2', () => {
-      // [latency=0.0→50, isUnhealthy=0.5→healthy, errorRate=0.3→0.6]
-      const svc = makeService([0.0, 0.5, 0.3]);
-      const result = svc.checkTwitterAPI();
+    it('returns degraded when Twitter bearer token not configured', async () => {
+      const originalToken = process.env.TWITTER_BEARER_TOKEN;
+      delete process.env.TWITTER_BEARER_TOKEN;
+
+      try {
+        const svc = makeService();
+        const result = await svc.checkTwitterAPI();
+
+        expect(result.status).toBe('degraded');
+        expect(result.error).toContain('not configured');
+      } finally {
+        process.env.TWITTER_BEARER_TOKEN = originalToken;
+      }
+    });
+
+    it('returns healthy on successful API response', async () => {
+      process.env.TWITTER_BEARER_TOKEN = 'valid-bearer-token';
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        status: 200,
+      });
+
+      const svc = makeService();
+      const result = await svc.checkTwitterAPI();
+
       expect(result.status).toBe('healthy');
-      expect(result.latency).toBe(50);
-      expect(result.errorRate).toBeCloseTo(0.6);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://api.twitter.com/2/users/me',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer valid-bearer-token',
+          }),
+        }),
+      );
     });
 
-    it('returns unhealthy when isUnhealthy call < 0.2', () => {
-      // [latency=0.0→50, isUnhealthy=0.1→unhealthy, errorRate=0.5→15]
-      const svc = makeService([0.0, 0.1, 0.5]);
-      const result = svc.checkTwitterAPI();
+    it('treats 401 Unauthorized as connectivity indicator', async () => {
+      process.env.TWITTER_BEARER_TOKEN = 'invalid-token';
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        status: 401,
+        ok: false,
+      });
+
+      const svc = makeService();
+      const result = await svc.checkTwitterAPI();
+
+      expect(result.status).toBe('healthy');
+    });
+
+    it('returns degraded on rate limit (429)', async () => {
+      process.env.TWITTER_BEARER_TOKEN = 'valid-bearer-token';
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        status: 429,
+        ok: false,
+      });
+
+      const svc = makeService();
+      const result = await svc.checkTwitterAPI();
+
+      expect(result.status).toBe('degraded');
+      expect(result.error).toContain('rate limited');
+    });
+
+    it('returns unhealthy after 3 consecutive API failures', async () => {
+      process.env.TWITTER_BEARER_TOKEN = 'valid-bearer-token';
+
+      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+
+      const svc = makeService();
+      let result;
+
+      for (let i = 1; i <= 3; i++) {
+        result = await svc.checkTwitterAPI();
+        const expectedStatus = i < 3 ? 'degraded' : 'unhealthy';
+        expect(result.status).toBe(expectedStatus);
+      }
+    });
+
+    it('returns unhealthy on immediate network error', async () => {
+      process.env.TWITTER_BEARER_TOKEN = 'valid-bearer-token';
+
+      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network timeout'));
+
+      const svc = makeService();
+      const result = await svc.checkTwitterAPI();
+
       expect(result.status).toBe('unhealthy');
-      expect(result.errorRate).toBeCloseTo(15);
-    });
-
-    it('increments failure counter on consecutive unhealthy calls and resets on healthy', () => {
-      const unhealthySeq = [0.0, 0.1, 0.5];
-      const svc = makeService(unhealthySeq);
-      svc.checkTwitterAPI(); // counter = 1
-      svc.checkTwitterAPI(); // counter = 2
-      expect(svc.checkTwitterAPI().status).toBe('unhealthy'); // counter = 3
-
-      // healthy call resets counter; next unhealthy starts from 1
-      const svc2 = makeService([0.0, 0.5, 0.3, 0.0, 0.1, 0.5]);
-      svc2.checkTwitterAPI(); // healthy → counter = 0
-      expect(svc2.checkTwitterAPI().status).toBe('unhealthy'); // counter = 1
+      expect(result.error).toContain('Network timeout');
     });
   });
 
   describe('getSystemStatus', () => {
-    // Call layout: database[0,1], redis[2,3], s3[4,5], twitter[6,7,8]
-    // twitter isUnhealthy is at index 7
+    it('returns healthy when all dependencies are healthy', async () => {
+      (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '1': 1 }]);
+      (redis.ping as jest.Mock).mockResolvedValue('PONG');
+      (global.fetch as jest.Mock).mockResolvedValue({ status: 200, ok: true });
 
-    it('returns overall healthy when all services are healthy', async () => {
-      // twitter isUnhealthy call (index 7) = 0.5 >= 0.2 → healthy
-      const svc = makeService([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0]);
+      process.env.AWS_ACCESS_KEY_ID = 'test-key';
+      process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+      process.env.AWS_S3_BUCKET = 'test-bucket';
+      process.env.TWITTER_BEARER_TOKEN = 'valid-token';
+
+      const svc = makeService();
       const { overallStatus, dependencies } = await svc.getSystemStatus();
+
       expect(overallStatus).toBe('healthy');
-      expect(Object.values(dependencies).every((d) => d.status === 'healthy')).toBe(true);
+      expect(dependencies.database.status).toBe('healthy');
+      expect(dependencies.redis.status).toBe('healthy');
+      expect(dependencies.s3.status).toBe('healthy');
+      expect(dependencies.twitter.status).toBe('healthy');
     });
 
-    it('returns overall unhealthy when twitter is unhealthy', async () => {
-      // twitter isUnhealthy call (index 7) = 0.1 < 0.2 → unhealthy
-      const svc = makeService([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.5]);
+    it('returns degraded when one dependency is degraded', async () => {
+      (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '1': 1 }]);
+      (redis.ping as jest.Mock).mockRejectedValue(new Error('Connection failed'));
+      (global.fetch as jest.Mock).mockResolvedValue({ status: 200, ok: true });
+
+      process.env.AWS_ACCESS_KEY_ID = 'test-key';
+      process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+      process.env.AWS_S3_BUCKET = 'test-bucket';
+      process.env.TWITTER_BEARER_TOKEN = 'valid-token';
+
+      const svc = makeService();
       const { overallStatus, dependencies } = await svc.getSystemStatus();
+
+      expect(overallStatus).toBe('degraded');
+      expect(dependencies.redis.status).toBe('degraded');
+    });
+
+    it('returns unhealthy when any dependency is unhealthy', async () => {
+      (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '1': 1 }]);
+      (redis.ping as jest.Mock).mockResolvedValue('PONG');
+      (global.fetch as jest.Mock).mockRejectedValue(new Error('API error'));
+
+      process.env.AWS_ACCESS_KEY_ID = 'test-key';
+      process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+      process.env.AWS_S3_BUCKET = 'test-bucket';
+      process.env.TWITTER_BEARER_TOKEN = 'valid-token';
+
+      // Force multiple failures for Twitter to become unhealthy
+      const svc = makeService();
+      for (let i = 0; i < 3; i++) {
+        await svc.checkTwitterAPI();
+      }
+
+      const { overallStatus, dependencies } = await svc.getSystemStatus();
+
       expect(overallStatus).toBe('unhealthy');
       expect(dependencies.twitter.status).toBe('unhealthy');
     });
 
     it('records metrics via healthMonitor when provided', async () => {
       const recordMetric = jest.fn().mockResolvedValue(undefined);
-      const svc = makeService([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0], { recordMetric });
+      const svc = makeService({ recordMetric } as any);
+
+      (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '1': 1 }]);
+      (redis.ping as jest.Mock).mockResolvedValue('PONG');
+      (global.fetch as jest.Mock).mockResolvedValue({ status: 200, ok: true });
+
+      process.env.AWS_ACCESS_KEY_ID = 'test-key';
+      process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+      process.env.AWS_S3_BUCKET = 'test-bucket';
+      process.env.TWITTER_BEARER_TOKEN = 'valid-token';
+
+      svc.setHealthMonitor({ recordMetric } as any);
       await svc.getSystemStatus();
+
       expect(recordMetric).toHaveBeenCalledTimes(4);
-      expect(recordMetric).toHaveBeenCalledWith(expect.objectContaining({ service: 'database' }));
-      expect(recordMetric).toHaveBeenCalledWith(expect.objectContaining({ service: 'twitter' }));
+      expect(recordMetric).toHaveBeenCalledWith(
+        expect.objectContaining({
+          service: 'database',
+          status: 'healthy',
+          errorRate: 0,
+        }),
+      );
+      expect(recordMetric).toHaveBeenCalledWith(
+        expect.objectContaining({
+          service: 'twitter',
+          status: 'healthy',
+          errorRate: 0,
+        }),
+      );
     });
 
-    it('skips monitor recording when no healthMonitor is set', async () => {
-      const svc = makeService([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0]);
+    it('does not throw when no healthMonitor is set', async () => {
+      (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '1': 1 }]);
+      (redis.ping as jest.Mock).mockResolvedValue('PONG');
+      (global.fetch as jest.Mock).mockResolvedValue({ status: 200, ok: true });
+
+      process.env.AWS_ACCESS_KEY_ID = 'test-key';
+      process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+      process.env.AWS_S3_BUCKET = 'test-bucket';
+      process.env.TWITTER_BEARER_TOKEN = 'valid-token';
+
+      const svc = makeService();
       await expect(svc.getSystemStatus()).resolves.not.toThrow();
+    });
+
+    it('includes latency and error messages for all dependencies', async () => {
+      (prisma.$queryRaw as jest.Mock).mockRejectedValue(new Error('Connection refused'));
+      (redis.ping as jest.Mock).mockResolvedValue('PONG');
+      (global.fetch as jest.Mock).mockResolvedValue({ status: 200, ok: true });
+
+      process.env.AWS_ACCESS_KEY_ID = 'test-key';
+      process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+      process.env.AWS_S3_BUCKET = 'test-bucket';
+      process.env.TWITTER_BEARER_TOKEN = 'valid-token';
+
+      const svc = makeService();
+      const { dependencies } = await svc.getSystemStatus();
+
+      expect(dependencies.database).toHaveProperty('latency');
+      expect(dependencies.database).toHaveProperty('lastChecked');
+      expect(dependencies.database).toHaveProperty('error', 'Connection refused');
+
+      expect(dependencies.redis).toHaveProperty('latency');
+      expect(dependencies.redis).not.toHaveProperty('error');
+    });
+  });
+
+  describe('setDependencyTimeout', () => {
+    it('allows customizing timeout for each dependency', async () => {
+      const svc = makeService();
+
+      svc.setDependencyTimeout('database', 1000);
+      svc.setDependencyTimeout('redis', 500);
+
+      // Verify the timeouts are enforced by checking that slow operations fail
+      (prisma.$queryRaw as jest.Mock).mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve([{ '1': 1 }]), 2000)),
+      );
+
+      const result = await svc.checkDatabase();
+      expect(result.status).toBe('degraded');
+      expect(result.error).toContain('timed out');
+    });
+
+    it('enforces minimum timeout of 100ms', async () => {
+      const svc = makeService();
+
+      // Try to set timeout below minimum
+      svc.setDependencyTimeout('database', 50);
+
+      (prisma.$queryRaw as jest.Mock).mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve([{ '1': 1 }]), 150)),
+      );
+
+      // Should use minimum 100ms, so this will timeout
+      const result = await svc.checkDatabase();
+      expect(result.status).toBe('degraded');
     });
   });
 });
