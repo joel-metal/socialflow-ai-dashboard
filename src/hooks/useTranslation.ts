@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { translationService } from '../services/TranslationService';
-import { TranslationRequest, TranslationResult } from '../types/translation';
+import { TranslationRequest, TranslationResult } from '@socialflow/shared';
 
 export function useTranslation() {
   const [result, setResult] = useState<TranslationResult | null>(null);

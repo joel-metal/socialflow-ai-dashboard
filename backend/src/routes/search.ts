@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authenticate as authMiddleware } from '../middleware/authenticate';
 import { validate } from '../middleware/validate';
 import { searchPosts } from '../services/SearchService';
 import { config } from '../config/config';

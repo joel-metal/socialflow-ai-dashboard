@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { translationService } from '../services/TranslationService';
 import { useTranslation } from '../hooks/useTranslation';
-import { SupportedLanguage } from '../types/translation';
+import { SupportedLanguage } from '@socialflow/shared';
 
 const MaterialIcon = ({ name, className }: { name: string; className?: string }) => (
   <span className={`material-symbols-outlined ${className}`}>{name}</span>

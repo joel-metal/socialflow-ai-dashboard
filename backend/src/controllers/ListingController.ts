@@ -7,8 +7,8 @@ export const toggleListingVisibility = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { isActive } = req.body;
 
-    // In a real app, from auth token. Here fallback to body for testing
     const mentorId = (req as any).user?.id || req.body.mentorId;
+    const orgId: string | undefined = (req as any).user?.organizationId;
 
     if (isActive === undefined) {
       return res.status(400).json({ success: false, message: 'isActive is required' });
@@ -18,7 +18,7 @@ export const toggleListingVisibility = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Unauthorized: Missing mentor ID' });
     }
 
-    const updatedListing = await listingService.toggleVisibility(id, mentorId, isActive);
+    const updatedListing = await listingService.toggleVisibility(id, mentorId, isActive, orgId);
 
     res.json({
       success: true,
@@ -34,7 +34,8 @@ export const searchListings = async (req: Request, res: Response) => {
   try {
     const query = (req.query.q as string) || '';
     const params = parsePageLimit(req);
-    const { data, total } = await listingService.searchListings(query, params);
+    const orgId: string | undefined = (req as any).user?.organizationId;
+    const { data, total } = await listingService.searchListings(query, params, orgId);
 
     res.json(buildPageResponse(req, data, total, params));
   } catch (error: any) {

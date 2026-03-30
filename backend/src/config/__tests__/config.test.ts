@@ -85,9 +85,25 @@ describe('validateEnv', () => {
       expect(result.DATA_PRUNING_ENABLED).toBe(false);
     });
 
+    it('transforms DATA_PRUNING_ENABLED "0" to false', () => {
+      const result = validateEnv({ ...REQUIRED_ENV, DATA_PRUNING_ENABLED: '0' });
+      expect(result.DATA_PRUNING_ENABLED).toBe(false);
+    });
+
     it('transforms DATA_PRUNING_ENABLED "true" to true', () => {
       const result = validateEnv({ ...REQUIRED_ENV, DATA_PRUNING_ENABLED: 'true' });
       expect(result.DATA_PRUNING_ENABLED).toBe(true);
+    });
+
+    it('transforms DATA_PRUNING_ENABLED "1" to true', () => {
+      const result = validateEnv({ ...REQUIRED_ENV, DATA_PRUNING_ENABLED: '1' });
+      expect(result.DATA_PRUNING_ENABLED).toBe(true);
+    });
+
+    it('rejects DATA_PRUNING_ENABLED "no" (not an accepted value)', () => {
+      expect(() => validateEnv({ ...REQUIRED_ENV, DATA_PRUNING_ENABLED: 'no' })).toThrow(
+        'Environment validation failed',
+      );
     });
 
     it('accepts valid NODE_ENV values', () => {
@@ -247,11 +263,22 @@ describe('validateEnv', () => {
       expect(result.DATA_PRUNING_ENABLED).toBe(true);
     });
 
-    it.each(['0', 'no', 'FALSE', 'off', 'disabled'])(
-      'DATA_PRUNING_ENABLED "%s" is treated as true (only "false" disables it)',
+    it.each(['true', '1'])('DATA_PRUNING_ENABLED "%s" enables pruning', (value) => {
+      const result = validateEnv({ ...REQUIRED_ENV, DATA_PRUNING_ENABLED: value });
+      expect(result.DATA_PRUNING_ENABLED).toBe(true);
+    });
+
+    it.each(['false', '0'])('DATA_PRUNING_ENABLED "%s" disables pruning', (value) => {
+      const result = validateEnv({ ...REQUIRED_ENV, DATA_PRUNING_ENABLED: value });
+      expect(result.DATA_PRUNING_ENABLED).toBe(false);
+    });
+
+    it.each(['no', 'yes', 'off', 'on', 'enabled', 'disabled'])(
+      'DATA_PRUNING_ENABLED "%s" is rejected (not an accepted value)',
       (value) => {
-        const result = validateEnv({ ...REQUIRED_ENV, DATA_PRUNING_ENABLED: value });
-        expect(result.DATA_PRUNING_ENABLED).toBe(true);
+        expect(() => validateEnv({ ...REQUIRED_ENV, DATA_PRUNING_ENABLED: value })).toThrow(
+          'Environment validation failed',
+        );
       },
     );
 

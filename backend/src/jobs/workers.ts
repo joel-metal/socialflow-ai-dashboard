@@ -1,5 +1,7 @@
 import { queueManager } from '../queues/queueManager';
 import { Worker } from 'bullmq';
+import { moderate } from '../services/ModerationService';
+import { MODERATION_QUEUE_NAME } from '../queues/moderationQueue';
 
 // Email job processor
 async function processEmailJob(job: any) {
@@ -330,6 +332,18 @@ export function initializeWorkers(): Map<string, Worker> {
     concurrency: workerConfigs.notification.concurrency,
   });
   workers.set('notification', notificationWorker);
+
+  // Moderation worker
+  const moderationWorker = queueManager.createWorker(
+    MODERATION_QUEUE_NAME,
+    async (job) => {
+      const { postId } = job.data as { postId: string };
+      const status = await moderate(postId);
+      return { postId, status };
+    },
+    { concurrency: 5 },
+  );
+  workers.set(MODERATION_QUEUE_NAME, moderationWorker);
 
   console.log(`Initialized ${workers.size} workers`);
 

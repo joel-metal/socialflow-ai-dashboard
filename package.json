@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "workspaces": [
+    "packages/*",
+    "backend"
+  ],
   "scripts": {
     "dev": "npx vite",
     "test": "vitest",
@@ -19,7 +23,10 @@
     "prepare": "husky install",
     "lint": "eslint .",
     "start:traced": "node -r ./dist/tracing.js dist/index.js",
-    "generate-client": "openapi-typescript-codegen --input ./backend/openapi.yaml --output ./src/api --client fetch --useOptions --useUnionTypes"
+    "generate-client": "openapi-typescript-codegen --input ./backend/openapi.yaml --output ./src/api --client fetch --useOptions --useUnionTypes",
+    "prisma": "npm run --prefix backend prisma",
+    "prisma:migrate": "npm run --prefix backend prisma migrate",
+    "prisma:generate": "npm run --prefix backend prisma generate"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -38,6 +45,7 @@
     "url": "https://github.com/obajecollinsmicheal-cmd/socialflow-ai-dashboard/issues"
   },
   "dependencies": {
+    "@socialflow/shared": "*",
     "@google/genai": "latest",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.71.0",
@@ -110,8 +118,5 @@
     "directories": {
       "output": "dist-electron"
     }
-  },
-  "prisma": {
-    "seed": "npx ts-node prisma/seed.ts"
   }
 }

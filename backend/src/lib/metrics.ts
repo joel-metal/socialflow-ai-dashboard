@@ -45,6 +45,18 @@ export const sliBreachTotal = new Counter({
 });
 
 /**
+ * Tracks degraded optional capabilities.
+ * Label `capability` matches the integration/component name.
+ * Value 1 = degraded (disabled/missing), 0 = fully operational.
+ */
+export const degradedCapabilities = new Gauge({
+  name: 'app_degraded_capabilities',
+  help: 'Optional capabilities running in degraded mode (1 = degraded, 0 = ok)',
+  labelNames: ['capability'] as const,
+  registers: [register],
+});
+
+/**
  * SLI budgets per endpoint category (milliseconds).
  * p95 / p99 targets per issue requirements.
  */
@@ -54,6 +66,18 @@ export const SLI_BUDGETS: Record<string, { p95: number; p99: number }> = {
   ai:     { p95: 2000, p99: 3000 },
   general: { p95: 500, p99: 1000 },
 };
+
+/**
+ * BullMQ queue depth gauge — waiting job count per queue.
+ * Scraped by Prometheus via /metrics and mapped to the custom metric
+ * `bullmq_queue_waiting` by the Prometheus Adapter for HPA scaling.
+ */
+export const bullmqQueueWaiting = new Gauge({
+  name: 'bullmq_queue_waiting',
+  help: 'Number of waiting jobs in each BullMQ queue',
+  labelNames: ['queue'] as const,
+  registers: [register],
+});
 
 /** Map a request path to an SLI category. */
 export function resolveCategory(path: string): string {

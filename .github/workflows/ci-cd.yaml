@@ -2,9 +2,9 @@ name: Staging CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main", "develop", "staging" ]
+    branches: ["main", "develop", "staging"]
   pull_request:
-    branches: [ "main", "develop", "staging" ]
+    branches: ["main", "develop", "staging"]
 
 jobs:
   ci:
@@ -12,69 +12,78 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          
+          node-version: "20"
+          cache: "npm"
+
       - name: Install Dependencies
         run: npm ci
-        
+
       - name: Lint
         run: npm run lint
-        
+
       - name: Test
         run: npm run test:ci || echo "Tests passed or ignored for demo"
 
   deploy-staging:
     name: Continuous Deployment (Staging)
     needs: ci
-    if: github.ref == 'refs/heads/staging' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
-    # Using 'environment' for secure secret management and approval gates
-    environment: 
+    environment:
       name: staging
-      url: ${{ steps.deploy.outputs.DEPLOY_URL }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/socialflow-backend
+      TAG: ${{ github.sha }}
+
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          node-version: '20'
-          
-      # OPTION 1: VERCEL (Zero-Downtime by Immutable Deployments)
-      - name: Deploy to Vercel
-        id: deploy
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.TAG }}
+            ${{ env.IMAGE }}:latest
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig
         run: |
-          npm install --global vercel@latest
-          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-          vercel build --token=${{ secrets.VERCEL_TOKEN }}
-          DEPLOY_URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
-          echo "DEPLOY_URL=$DEPLOY_URL" >> $GITHUB_OUTPUT
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
 
-      # OPTION 2: AWS APP RUNNER (Rolling Updates by default)
-      # - name: Deploy to AWS App Runner
-      #   uses: aws-actions/amazon-apprunner-deploy@v1
-      #   with:
-      #     service: socialflow-dashboard-staging
-      #     image: ${{ secrets.DOCKER_IMAGE_NAME }}:latest
-      #     access-role-arn: ${{ secrets.AWS_ROLE_ARN }}
-      #     region: us-east-1
-      #     wait-for-service-stability-seconds: 600
-
-      # OPTION 3: HEROKU (Zero-Downtime via Preboot)
-      # - name: Deploy to Heroku
-      #   uses: akhileshns/heroku-deploy@v3.13.15
-      #   with:
-      #     heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-      #     heroku_app_name: "socialflow-dashboard-staging"
-      #     heroku_email: ${{ secrets.HEROKU_EMAIL }}
-
-      - name: Verify Staging Deployment
+      - name: Deploy to Kubernetes
         run: |
-          echo "Deployment successful: ${{ steps.deploy.outputs.DEPLOY_URL }}"
-          # Verification step: Health check (timeout after 5m)
-          timeout 300 bash -c 'until curl -s "${{ steps.deploy.outputs.DEPLOY_URL }}/api/health"; do sleep 5; done'
+          kubectl set image deployment/socialflow-backend \
+            backend=${{ env.IMAGE }}:${{ env.TAG }} \
+            --namespace=staging
+          kubectl rollout status deployment/socialflow-backend \
+            --namespace=staging \
+            --timeout=120s
+
+      - name: Smoke test /health
+        run: |
+          BACKEND_URL="${{ secrets.STAGING_BACKEND_URL }}"
+          echo "Polling ${BACKEND_URL}/health ..."
+          timeout 120 bash -c \
+            'until curl -sf "${BACKEND_URL}/health"; do echo "waiting..."; sleep 5; done'
+          echo "Health check passed"

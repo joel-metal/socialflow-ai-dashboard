@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authenticate as authMiddleware } from '../middleware/authenticate';
 import { validate } from '../middleware/validate';
 import { createTTSJobSchema } from '../schemas/tts';
 import { createTTSJob, getTTSJob, listTTSJobs, cancelTTSJob, listVoices } from '../controllers/tts';

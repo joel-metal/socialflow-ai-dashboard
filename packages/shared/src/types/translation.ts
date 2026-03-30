@@ -1,6 +1,11 @@
+/**
+ * Canonical translation types shared between frontend and backend.
+ * Import from this package in both frontend and backend to prevent type drift.
+ */
+
 export interface TranslationRequest {
   text: string;
-  sourceLanguage?: string; // Auto-detect if not provided
+  sourceLanguage?: string;
   targetLanguages: string[];
   preserveFormatting?: boolean;
   preserveHashtags?: boolean;

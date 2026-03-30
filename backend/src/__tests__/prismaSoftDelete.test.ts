@@ -71,7 +71,7 @@ describe('softDeleteMiddleware', () => {
   });
 
   describe('find queries filter out soft-deleted records', () => {
-    it.each(['findMany', 'findFirst', 'findUnique', 'findFirstOrThrow', 'findUniqueOrThrow'])(
+    it.each(['findMany', 'findFirst', 'findFirstOrThrow'])(
       '%s adds deletedAt: null to where clause',
       async (action: string) => {
         const next = makeNext();
@@ -79,11 +79,30 @@ describe('softDeleteMiddleware', () => {
 
         expect(next).toHaveBeenCalledWith(
           expect.objectContaining({
+            action,
             args: expect.objectContaining({ where: { deletedAt: null } }),
           }),
         );
       },
     );
+
+    it.each([
+      ['findUnique', 'findFirst'],
+      ['findUniqueOrThrow', 'findFirstOrThrow'],
+    ])('converts %s to %s and adds deletedAt: null', async (from, to) => {
+      const next = makeNext();
+      await softDeleteMiddleware(
+        params({ action: from as string, args: { where: { id: '1' } } }),
+        next,
+      );
+
+      expect(next).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: to,
+          args: expect.objectContaining({ where: { id: '1', deletedAt: null } }),
+        }),
+      );
+    });
 
     it('preserves existing where conditions alongside deletedAt: null', async () => {
       const next = makeNext();

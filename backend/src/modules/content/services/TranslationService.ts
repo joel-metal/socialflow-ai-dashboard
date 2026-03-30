@@ -4,7 +4,7 @@ import {
   Translation,
   PreservedElement,
   SupportedLanguage,
-} from '../types/translation';
+} from '@socialflow/shared';
 
 /**
  * TranslationService - Backend translation service

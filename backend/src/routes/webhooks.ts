@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authenticate as authMiddleware } from '../middleware/authenticate';
 import { validate } from '../middleware/validate';
 import { createWebhookSchema, updateWebhookSchema, testWebhookSchema } from '../schemas/webhooks';
 import { verifySignature, rawBodyMiddleware } from '../middleware/verifySignature';

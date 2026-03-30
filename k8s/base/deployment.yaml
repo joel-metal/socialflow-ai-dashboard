@@ -17,6 +17,7 @@ spec:
         prometheus.io/port: "3001"
         prometheus.io/path: "/metrics"
     spec:
+      terminationGracePeriodSeconds: 30
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -33,6 +34,13 @@ spec:
                 name: socialflow-config
             - secretRef:
                 name: socialflow-secrets
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /health
@@ -40,13 +48,15 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 3
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 20
+            initialDelaySeconds: 0
             periodSeconds: 20
             failureThreshold: 3
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 250m
@@ -54,3 +64,7 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]

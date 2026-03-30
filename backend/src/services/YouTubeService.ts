@@ -1,5 +1,8 @@
 import { circuitBreakerService } from './CircuitBreakerService';
 import { createLogger } from '../lib/logger';
+import { DegradedResponse, degraded } from '../types/degraded';
+
+export { isDegraded } from '../types/degraded';
 
 const logger = createLogger('youtube-service');
 
@@ -151,7 +154,7 @@ class YouTubeService {
   public async getVideoStats(
     accessToken: string,
     videoIds: string[],
-  ): Promise<YouTubeVideoStats[]> {
+  ): Promise<YouTubeVideoStats[] | DegradedResponse<YouTubeVideoStats[]>> {
     if (!videoIds.length) return [];
 
     return circuitBreakerService.execute(
@@ -180,14 +183,17 @@ class YouTubeService {
         }));
       },
       async () => {
-        logger.warn('YouTube circuit breaker open, returning empty video stats');
-        return [];
+        logger.warn('YouTube circuit breaker open, returning degraded video stats');
+        return degraded<YouTubeVideoStats[]>([], 'YouTube API temporarily unavailable');
       },
     );
   }
 
   /** List the most recent videos for the authenticated channel */
-  public async listChannelVideos(accessToken: string, maxResults = 25): Promise<string[]> {
+  public async listChannelVideos(
+    accessToken: string,
+    maxResults = 25,
+  ): Promise<string[] | DegradedResponse<string[]>> {
     return circuitBreakerService.execute(
       'youtube',
       async () => {
@@ -207,8 +213,8 @@ class YouTubeService {
         return (data.items ?? []).map((item: any) => item.id.videoId as string);
       },
       async () => {
-        logger.warn('YouTube circuit breaker open, returning empty video list');
-        return [];
+        logger.warn('YouTube circuit breaker open, returning degraded video list');
+        return degraded<string[]>([], 'YouTube API temporarily unavailable');
       },
     );
   }

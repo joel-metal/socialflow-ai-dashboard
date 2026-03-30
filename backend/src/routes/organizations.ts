@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authenticate as authMiddleware } from '../middleware/authenticate';
 import {
   createOrganization,
   listOrganizations,

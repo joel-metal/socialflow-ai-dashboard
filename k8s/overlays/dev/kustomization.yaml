@@ -5,6 +5,8 @@ namespace: socialflow-dev
 
 resources:
   - ../../base
+  - limitrange.yaml
+  - resourcequota.yaml
 
 patches:
   # 1 replica, relaxed resources for dev

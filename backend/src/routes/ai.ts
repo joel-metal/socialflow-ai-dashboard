@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { analyzeImage, GeminiServiceError } from '../../../services/geminiService';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authenticate as authMiddleware } from '../middleware/authenticate';
 import { requireCredits } from '../middleware/requireCredits';
 
 const router = Router();

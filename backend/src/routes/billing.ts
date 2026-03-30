@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
+import { authenticate as authMiddleware, AuthRequest } from '../middleware/authenticate';
 import { validate } from '../middleware/validate';
 import { billingService } from '../services/BillingService';
 import { SubscriptionStore, CreditLogStore } from '../models/Subscription';

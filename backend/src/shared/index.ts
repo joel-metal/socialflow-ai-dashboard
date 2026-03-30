@@ -1,6 +1,6 @@
 // Shared middleware
 export * from './middleware/authMiddleware';
-export * from './middleware/error';
+export * from '../middleware/error';
 export * from './middleware/requestId';
 export * from './middleware/validate';
 export * from './middleware/audit';
@@ -25,7 +25,7 @@ export * from './config/tts.config';
 export * from './config/video.config';
 
 // Shared types
-export * from './types/translation';
+export * from '@socialflow/shared';
 export * from './types/video';
 export * from './types/circuitBreaker';
 export * from './types/tts';

@@ -100,3 +100,9 @@ export {
   NotificationJobData,
   BulkNotificationData,
 } from './notificationQueue';
+export {
+  moderationQueue,
+  enqueueModeration,
+  MODERATION_QUEUE_NAME,
+  ModerationJobData,
+} from './moderationQueue';

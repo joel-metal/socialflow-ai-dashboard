@@ -13,12 +13,15 @@ This keeps the final image small (no TypeScript compiler, no devDependencies) an
 
 ## Build
 
+Run these from the **repo root**. The `-f` flag explicitly targets the canonical
+backend Dockerfile to avoid any ambiguity with the root-level `./Dockerfile`.
+
 ```bash
-# From the backend/ directory
-docker build -t socialflow-backend .
+# Latest
+docker build -f backend/Dockerfile backend/ -t socialflow-backend:latest
 
 # With a specific tag
-docker build -t socialflow-backend:1.0.0 .
+docker build -f backend/Dockerfile backend/ -t socialflow-backend:1.0.0
 ```
 
 ## Run
@@ -47,7 +50,9 @@ TWITTER_API_SECRET=<secret>
 ```yaml
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: backend/Dockerfile
     ports:
       - "3001:3001"
     env_file: ./backend/.env

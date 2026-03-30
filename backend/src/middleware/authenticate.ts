@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AuthBlacklistService } from '../services/AuthBlacklistService';
-
-const JWT_SECRET = () => process.env.JWT_SECRET ?? 'change-me-in-production';
+import { config } from '../config/config';
 
 export interface AuthRequest extends Request {
   user?: { id: string };
+  /** @deprecated Use req.user.id instead */
+  userId?: string;
+  activeOrgId?: string;
 }
 
 export async function authenticate(
@@ -22,7 +24,7 @@ export async function authenticate(
   const token = authHeader.slice(7);
   let payload: jwt.JwtPayload;
   try {
-    payload = jwt.verify(token, JWT_SECRET()) as jwt.JwtPayload;
+    payload = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
   } catch {
     res.status(401).json({ message: 'Invalid or expired access token' });
     return;
@@ -34,6 +36,9 @@ export async function authenticate(
     return;
   }
 
-  req.user = { id: payload.sub as string };
+  const userId = payload.sub as string;
+  req.user = { id: userId };
+  // Keep req.userId for backward-compat with downstream middleware (checkPermission, requireCredits, etc.)
+  req.userId = userId;
   next();
 }

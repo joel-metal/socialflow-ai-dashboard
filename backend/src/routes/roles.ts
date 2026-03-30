@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
+import { authenticate as authMiddleware, AuthRequest } from '../middleware/authenticate';
 import { checkPermission } from '../middleware/checkPermission';
 import { validate } from '../middleware/validate';
 import { ROLES, PERMISSIONS, RoleStore, RoleName } from '../models/Role';

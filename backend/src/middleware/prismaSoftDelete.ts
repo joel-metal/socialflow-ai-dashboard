@@ -38,6 +38,11 @@ export const softDeleteMiddleware = async (params: MiddlewareParams, next: Next)
   }
 
   if (FIND_ACTIONS.has(params.action)) {
+    if (params.action === 'findUnique') {
+      params.action = 'findFirst';
+    } else if (params.action === 'findUniqueOrThrow') {
+      params.action = 'findFirstOrThrow';
+    }
     params.args ??= {};
     params.args.where ??= {};
     params.args.where.deletedAt = null;

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authenticate as authMiddleware } from '../middleware/authenticate';
 import { validate } from '../middleware/validate';
 import { createPost } from '../controllers/PostController';
 

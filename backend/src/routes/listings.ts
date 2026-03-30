@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { toggleListingVisibility, searchListings } from '../controllers/ListingController';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authenticate as authMiddleware } from '../middleware/authenticate';
 
 const router = Router();
 

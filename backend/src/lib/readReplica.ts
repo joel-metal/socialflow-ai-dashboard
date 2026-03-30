@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import { config } from '../config/config';
 import { PrismaClient } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { createLogger } from './logger';
@@ -80,6 +80,10 @@ function parseReplicaConfigs(): Required<ReplicaConfig>[] {
     .map((s) => s.trim())
     .filter(Boolean);
 
+  if (config.DATABASE_REPLICA_URL && !urls.includes(config.DATABASE_REPLICA_URL)) {
+    urls.push(config.DATABASE_REPLICA_URL);
+  }
+
   if (!urls.length) return [];
 
   const weights = (process.env.DATABASE_REPLICA_WEIGHTS ?? '')
@@ -108,6 +112,11 @@ function parseReplicaConfigs(): Required<ReplicaConfig>[] {
 // ---------------------------------------------------------------------------
 
 export function applyReadWriteSplitting(primary: PrismaClient): void {
+  if (!config.DATABASE_REPLICA_URL && !process.env.DATABASE_REPLICA_URLS) {
+    logger.info('Read/write splitting skipped — no DATABASE_REPLICA_URL configured');
+    return;
+  }
+
   const replicas = parseReplicaConfigs();
 
   if (!replicas.length) {

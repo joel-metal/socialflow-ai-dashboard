@@ -1,5 +1,8 @@
 import { circuitBreakerService } from './CircuitBreakerService';
 import { LockService } from '../utils/LockService';
+import { createLogger } from '../lib/logger';
+
+const logger = createLogger('twitter-service');
 
 /**
  * Twitter API Response Types
@@ -117,7 +120,7 @@ class TwitterService {
       },
       async () => {
         // Fallback: return empty array
-        console.warn('Twitter circuit breaker open, returning empty timeline');
+        logger.warn('Circuit breaker open, returning empty timeline', { service: 'twitter', state: 'open' });
         return [];
       },
     );
@@ -152,7 +155,7 @@ class TwitterService {
       },
       async () => {
         // Fallback: return null
-        console.warn('Twitter circuit breaker open, returning null user');
+        logger.warn('Circuit breaker open, returning null user', { service: 'twitter', state: 'open' });
         return null;
       },
     );
@@ -187,7 +190,7 @@ class TwitterService {
       },
       async () => {
         // Fallback: return empty array
-        console.warn('Twitter circuit breaker open, returning empty search results');
+        logger.warn('Circuit breaker open, returning empty search results', { service: 'twitter', state: 'open' });
         return [];
       },
     );

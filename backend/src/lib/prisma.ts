@@ -10,7 +10,7 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const tracer = trace.getTracer('socialflow-db');
 
 // Models that should be scoped to an organization
-const ORG_SCOPED_MODELS = new Set(['Post', 'AnalyticsEntry']);
+const ORG_SCOPED_MODELS = new Set(['Post', 'AnalyticsEntry', 'Listing']);
 
 /**
  * Pool sizing defaults:

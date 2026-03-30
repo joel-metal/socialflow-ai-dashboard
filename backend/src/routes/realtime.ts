@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { AuthRequest } from '../middleware/authMiddleware';
+import { AuthRequest } from '../middleware/authenticate';
 import { eventBus, JobProgressEvent } from '../lib/eventBus';
 import { createLogger } from '../lib/logger';
 

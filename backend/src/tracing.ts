@@ -92,9 +92,14 @@ logger.info('OpenTelemetry tracing initialised', {
 });
 
 // Flush spans on graceful shutdown
-process.on('SIGTERM', () => {
-  sdk
-    .shutdown()
+export const shutdownOtel = (timeoutMs = 5_000): Promise<void> =>
+  Promise.race([
+    sdk.shutdown(),
+    new Promise<void>((_, reject) =>
+      setTimeout(() => reject(new Error('OTel shutdown timed out')), timeoutMs),
+    ),
+  ])
     .then(() => logger.info('OTel SDK shut down cleanly'))
     .catch((err: unknown) => logger.error('OTel SDK shutdown error', err));
-});
+
+process.on('SIGTERM', () => { void shutdownOtel(); });

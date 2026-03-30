@@ -22,3 +22,16 @@ spec:
         target:
           type: Utilization
           averageUtilization: 80
+    # Scale out when any BullMQ queue has more than 50 waiting jobs.
+    # Requires the Prometheus Adapter with a custom metric rule mapping
+    # the bullmq_queue_waiting gauge to this external metric name.
+    - type: External
+      external:
+        metric:
+          name: bullmq_queue_waiting
+          selector:
+            matchLabels:
+              app: socialflow-backend
+        target:
+          type: AverageValue
+          averageValue: "50"

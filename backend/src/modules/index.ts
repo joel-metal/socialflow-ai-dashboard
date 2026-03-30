@@ -9,6 +9,7 @@ import videoRoutes from './content/routes.video';
 import translationRoutes from './content/routes.translation';
 import ttsRoutes from './content/routes.tts';
 import billingRoutes from './billing/routes';
+import { postsRouter } from './posts';
 
 /**
  * Module Registry
@@ -42,6 +43,9 @@ export function registerModules(app: any): void {
 
   // Billing module
   app.use('/api/billing', billingRoutes);
+
+  // Posts module (create → moderation → schedule)
+  app.use('/api/posts', postsRouter);
 }
 
 export * from './health';

@@ -2,10 +2,62 @@ name: CI
 
 on:
   pull_request:
+    branches: [develop, staging, main]
   push:
-    branches: [main]
+    branches: [develop, staging, main]
 
 jobs:
+  k8s-lint:
+    name: Kubernetes Manifest Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kustomize
+        run: |
+          curl -sL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Render dev overlay
+        id: render-dev
+        run: kustomize build k8s/overlays/dev > /tmp/dev-manifests.yaml
+
+      - name: Render prod overlay
+        id: render-prod
+        run: kustomize build k8s/overlays/prod > /tmp/prod-manifests.yaml
+
+      - name: Reject placeholder secret values
+        run: |
+          for f in /tmp/dev-manifests.yaml /tmp/prod-manifests.yaml; do
+            if grep -qE 'change-me|USER:PASS|placeholder' "$f"; then
+              echo "ERROR: $f contains placeholder secret values"
+              grep -nE 'change-me|USER:PASS|placeholder' "$f"
+              exit 1
+            fi
+          done
+          echo "No placeholder secrets found."
+
+      - name: Require TLS on all Ingress resources
+        run: |
+          python3 - <<'EOF'
+          import sys, yaml
+
+          failed = False
+          for path in ["/tmp/dev-manifests.yaml", "/tmp/prod-manifests.yaml"]:
+              with open(path) as f:
+                  docs = list(yaml.safe_load_all(f))
+              for doc in docs:
+                  if doc and doc.get("kind") == "Ingress":
+                      name = doc.get("metadata", {}).get("name", "<unknown>")
+                      tls = doc.get("spec", {}).get("tls")
+                      if not tls:
+                          print(f"ERROR: Ingress '{name}' in {path} has no TLS block")
+                          failed = True
+          if failed:
+              sys.exit(1)
+          print("All Ingress resources have TLS configured.")
+          EOF
+
   security:
     name: Security Vulnerability Scan
     runs-on: ubuntu-latest
@@ -14,16 +66,17 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
-      - name: Audit frontend dependencies
+      - name: Audit all workspace dependencies
         run: npm audit --audit-level=high
 
-      - name: Audit backend dependencies
-        working-directory: backend
-        run: npm audit --audit-level=high
+      - name: Detect Snyk token availability
+        id: snyk-token
+        run: echo "available=${{ secrets.SNYK_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
 
       - name: Run Snyk scan (frontend)
+        if: steps.snyk-token.outputs.available == 'true'
         uses: snyk/actions/node@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -31,32 +84,37 @@ jobs:
           args: --severity-threshold=high --file=package-lock.json
 
       - name: Run Snyk scan (backend)
+        if: steps.snyk-token.outputs.available == 'true'
         uses: snyk/actions/node@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           args: --severity-threshold=high --file=backend/package-lock.json
 
+      - name: Snyk scan fallback notice
+        if: steps.snyk-token.outputs.available != 'true'
+        run: |
+          echo "SNYK_TOKEN is not available in this workflow context."
+          echo "Dependency audit checks still ran; Snyk steps were skipped."
+
   coverage:
     name: Test Coverage
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
       - name: Validate Jest config and project discovery
+        working-directory: backend
         run: |
           node -e "require('./jest.config.js')" && echo "jest.config.js: parse OK"
           npx jest --showConfig 2>/dev/null | node -e "
@@ -72,9 +130,11 @@ jobs:
           "
 
       - name: Generate Prisma client
+        working-directory: backend
         run: npx prisma generate
 
       - name: Run tests with coverage
+        working-directory: backend
         run: npm run test:ci
         env:
           NODE_ENV: test

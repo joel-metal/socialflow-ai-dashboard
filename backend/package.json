@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "dist/server.js",
   "scripts": {
+    "generate:openapi": "ts-node scripts/generate-openapi.ts",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
@@ -22,6 +23,7 @@
     "format": "prettier --write 'src/**/*.ts'"
   },
   "dependencies": {
+    "@socialflow/shared": "*",
     "@apollo/server": "^5.5.0",
     "@as-integrations/express4": "^1.1.2",
     "@as-integrations/express5": "^1.1.2",

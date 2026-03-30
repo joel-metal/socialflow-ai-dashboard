@@ -1,3 +1,8 @@
+# ── Canonical backend Dockerfile ─────────────────────────────────────────────
+# This is the single source of truth for the socialflow-backend image.
+# Build context must be the backend/ directory:
+#   docker build -f backend/Dockerfile backend/
+
 # ── Stage 1: build ───────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 

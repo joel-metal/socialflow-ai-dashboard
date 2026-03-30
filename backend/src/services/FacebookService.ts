@@ -1,6 +1,9 @@
 import { circuitBreakerService } from './CircuitBreakerService';
 import { LockService } from '../utils/LockService';
 import { createLogger } from '../lib/logger';
+import { DegradedResponse, degraded } from '../types/degraded';
+
+export { isDegraded } from '../types/degraded';
 
 const logger = createLogger('facebook-service');
 
@@ -370,7 +373,7 @@ class FacebookService {
     pageId: string,
     postId: string,
     accessToken: string,
-  ): Promise<FacebookComment[]> {
+  ): Promise<FacebookComment[] | DegradedResponse<FacebookComment[]>> {
     return circuitBreakerService.execute(
       'facebook',
       async () => {
@@ -391,7 +394,7 @@ class FacebookService {
       },
       async () => {
         logger.warn('Facebook circuit breaker open, comments fetch skipped');
-        return [];
+        return degraded<FacebookComment[]>([], 'Facebook API temporarily unavailable');
       },
     );
   }
@@ -468,7 +471,7 @@ class FacebookService {
     pageId: string,
     accessToken: string,
     metrics: string[] = ['page_impressions', 'page_engagement', 'page_fan_count'],
-  ): Promise<any> {
+  ): Promise<any | DegradedResponse<{ data: never[] }>> {
     return circuitBreakerService.execute(
       'facebook',
       async () => {
@@ -488,7 +491,7 @@ class FacebookService {
       },
       async () => {
         logger.warn('Facebook circuit breaker open, insights fetch skipped');
-        return { data: [] };
+        return degraded<{ data: never[] }>({ data: [] }, 'Facebook API temporarily unavailable');
       },
     );
   }

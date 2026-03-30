@@ -1,40 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { AuthBlacklistService } from '../services/AuthBlacklistService';
-
-const JWT_SECRET = () => process.env.JWT_SECRET ?? 'change-me-in-production';
-
-export interface AuthRequest extends Request {
-  userId?: string;
-  activeOrgId?: string;
-}
-
-export async function authMiddleware(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ message: 'Missing or malformed Authorization header' });
-    return;
-  }
-
-  const token = authHeader.slice(7);
-  let payload: jwt.JwtPayload;
-  try {
-    payload = jwt.verify(token, JWT_SECRET()) as jwt.JwtPayload;
-  } catch {
-    res.status(401).json({ message: 'Invalid or expired access token' });
-    return;
-  }
-
-  const tokenKey = AuthBlacklistService.keyFromPayload(payload);
-  if (await AuthBlacklistService.isBlacklisted(tokenKey)) {
-    res.status(401).json({ message: 'Token has been revoked' });
-    return;
-  }
-
-  req.userId = payload.sub as string;
-  next();
-}
+/**
+ * @deprecated This file is kept for backward compatibility only.
+ * Import `authenticate` and `AuthRequest` from `./authenticate` instead.
+ * This file will be removed in a future cleanup.
+ */
+export { authenticate as authMiddleware, AuthRequest } from './authenticate';

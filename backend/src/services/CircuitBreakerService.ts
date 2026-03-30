@@ -4,6 +4,9 @@ import {
   CIRCUIT_CONFIGS,
   FALLBACK_STRATEGIES,
 } from '../config/circuitBreaker.config';
+import { createLogger } from '../lib/logger';
+
+const logger = createLogger('circuit-breaker');
 
 /**
  * Circuit Breaker State
@@ -100,7 +103,7 @@ class CircuitBreakerService {
     } catch (error) {
       // Circuit is open or function failed
       if (fallback) {
-        console.warn(`Circuit breaker fallback triggered for ${serviceName}`);
+        logger.warn(`Circuit breaker fallback triggered for ${serviceName}`);
         return await fallback();
       }
 
@@ -186,35 +189,35 @@ class CircuitBreakerService {
    */
   private setupEventListeners(breaker: CircuitBreaker, serviceName: string): void {
     breaker.on('open', () => {
-      console.warn(`🔴 Circuit breaker OPENED for ${serviceName}`);
+      logger.warn(`Circuit breaker OPENED for ${serviceName}`);
     });
 
     breaker.on('halfOpen', () => {
-      console.info(`🟡 Circuit breaker HALF-OPEN for ${serviceName}`);
+      logger.info(`Circuit breaker HALF-OPEN for ${serviceName}`);
     });
 
     breaker.on('close', () => {
-      console.info(`🟢 Circuit breaker CLOSED for ${serviceName}`);
+      logger.info(`Circuit breaker CLOSED for ${serviceName}`);
     });
 
     breaker.on('failure', (error) => {
-      console.error(`❌ Circuit breaker failure for ${serviceName}:`, error.message);
+      logger.error(`Circuit breaker failure for ${serviceName}`, { message: error.message });
     });
 
     breaker.on('success', () => {
-      console.debug(`✅ Circuit breaker success for ${serviceName}`);
+      logger.info(`Circuit breaker success for ${serviceName}`);
     });
 
     breaker.on('timeout', () => {
-      console.warn(`⏱️ Circuit breaker timeout for ${serviceName}`);
+      logger.warn(`Circuit breaker timeout for ${serviceName}`);
     });
 
     breaker.on('reject', () => {
-      console.warn(`🚫 Circuit breaker rejected request for ${serviceName} (circuit is open)`);
+      logger.warn(`Circuit breaker rejected request for ${serviceName} (circuit is open)`);
     });
 
     breaker.on('fallback', () => {
-      console.info(`🔄 Circuit breaker fallback triggered for ${serviceName}`);
+      logger.info(`Circuit breaker fallback triggered for ${serviceName}`);
     });
   }
 

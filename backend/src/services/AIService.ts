@@ -2,6 +2,9 @@ import { GoogleGenerativeAI } from '@google/genai';
 import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { circuitBreakerService } from './CircuitBreakerService';
 import { eventBus } from '../lib/eventBus';
+import { createLogger } from '../lib/logger';
+
+const logger = createLogger('ai-service');
 
 const tracer = trace.getTracer('socialflow-ai');
 
@@ -30,7 +33,7 @@ class AIService {
         this.genAI = new GoogleGenerativeAI(apiKey);
         this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
       } catch (error) {
-        console.warn('Failed to initialize Gemini AI:', error);
+        logger.warn('Failed to initialize Gemini AI', { service: 'ai', error: (error as Error).message });
       }
     }
   }
@@ -90,7 +93,7 @@ class AIService {
         },
         async () => {
           if (fallbackResponse) {
-            console.warn('AI circuit breaker open, using fallback response');
+            logger.warn('Circuit breaker open, using fallback response', { service: 'ai', state: 'open' });
             span.setAttribute('ai.fallback', true);
             return fallbackResponse;
           }

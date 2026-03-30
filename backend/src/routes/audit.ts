@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
+import { authenticate as authMiddleware, AuthRequest } from '../middleware/authenticate';
 import { AuditLogStore } from '../models/AuditLog';
 import { parsePageLimit, buildPageResponse } from '../utils/pagination';
 

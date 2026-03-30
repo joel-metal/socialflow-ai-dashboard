@@ -5,7 +5,7 @@ import app, { apolloReady } from './app';
 import { SocketService } from './services/SocketService';
 import { initializeWorkers } from './jobs/workers';
 import { startWorkers } from './workers/index';
-import { queueManager } from './queues/queueManager';
+import { queueManager, closeRedisClient } from './queues/queueManager';
 import { startDataPruningJob, stopDataPruningJob } from './jobs/dataPruningJob';
 import { startYouTubeSyncJob, stopYouTubeSyncJob } from './jobs/youtubeSyncJob';
 import { startTikTokVideoWorker } from './jobs/tiktokVideoJob';
@@ -15,6 +15,7 @@ import { startHealthMonitoringJob, stopHealthMonitoringJob } from './jobs/health
 import { initializeHealthMonitoring } from './monitoring/healthMonitoringInstance';
 import { createLogger } from './lib/logger';
 import { prisma } from './lib/prisma';
+import { checkIntegrations } from './lib/integrationStatus';
 import { Worker } from 'bullmq';
 import { Server } from 'http';
 import { initSearchIndex } from './services/SearchService';
@@ -152,6 +153,16 @@ export const gracefulShutdown = async (
       });
     }
 
+    // Close standalone Redis client
+    try {
+      await closeRedisClient();
+      logger.info('Redis client closed');
+    } catch (error) {
+      logger.error('Failed to close Redis client', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     // Close database connections
     try {
       await prisma.$disconnect();
@@ -225,10 +236,16 @@ process.on('SIGTERM', () => {
 });
 
 /**
- * Bootstrap the application
+ * Bootstrap the application.
+ * @param exit - Injectable exit handler (defaults to process.exit). Injected in tests.
  */
-const bootstrap = async (): Promise<void> => {
+export const bootstrap = async (
+  exit: (code: number) => void = (code) => process.exit(code),
+): Promise<void> => {
   try {
+    // Check optional integrations — warns for disabled ones, throws if REQUIRE_INTEGRATIONS policy is violated
+    checkIntegrations();
+
     // Initialize job queue workers
     logger.info('Initializing job queue workers...');
     initializeWorkers();
@@ -334,7 +351,7 @@ const bootstrap = async (): Promise<void> => {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
-    process.exit(1);
+    exit(1);
   }
 };
 

@@ -66,6 +66,8 @@ DB_POOL_TIMEOUT=30       # seconds to wait for a free connection before erroring
 | `DATA_PRUNING_CRON`             | `0 2 * * *`                         | Cron schedule for data pruning                                           |
 | `DATA_RETENTION_LOG_DAYS`       | `30`                                | Log retention in days                                                    |
 | `DATA_RETENTION_ANALYTICS_DAYS` | `90`                                | Analytics retention in days                                              |
+| `DATA_RETENTION_MISSING_PATH_POLICY` | `warn`                         | What to do when a retention path is missing: `warn` \| `fail` \| `ignore` |
+| `DATA_RETENTION_MISSING_PATH_ALERT_THRESHOLD` | `3`               | Fire an alert when missing-path count reaches this value in a single run |
 
 ### Social / third-party integrations (all optional)
 
@@ -254,7 +256,34 @@ Current platform-by-capability implementation status for analytics integrations 
 
 - `backend/docs/analytics-integration-status.md`
 
+**All logic for data retention is located in `backend/src/services/DataRetentionService.ts`.**
+
+---
+
+## Security
+
+Please report any security vulnerabilities by following our [Security Policy](./SECURITY.md).
+
 Use that matrix as the source of truth for whether each platform capability is **implemented**, **partial**, or **planned**, including owner paths and roadmap links.
+
+---
+
+## Data Retention and Pruning Policy
+
+Retention is enforced by the backend data pruning service and scheduler.
+
+- **Targets:** log files and analytics files.
+- **Default windows:** logs = `30` days, analytics = `90` days.
+- **Default paths:** `logs` and `data/analytics` (override via `DATA_RETENTION_LOG_PATHS`, `DATA_RETENTION_ANALYTICS_PATHS`).
+- **Modes:**
+  - `archive` (default): moves eligible files into `DATA_RETENTION_ARCHIVE_DIR` under category folders.
+  - `delete`: permanently removes eligible files.
+
+Safe validation should start with `DATA_RETENTION_MODE=archive` and `DATA_PRUNING_ENABLED=false`, then run a manual pruning cycle against sandbox path targets before enabling schedule-based runs.
+
+Full end-to-end runbook (targets, defaults, operational expectations, dry-run workflow, rollback/recovery):
+
+- `backend/docs/retention-pruning-policy.md`
 
 ---
 
