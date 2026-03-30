@@ -98,3 +98,9 @@ patches:
           - hosts:
               - api.socialflow.example.com
             secretName: socialflow-tls
+
+configMapGenerator:
+  - name: socialflow-config
+    behavior: merge
+    literals:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.monitoring:4318/v1/traces
