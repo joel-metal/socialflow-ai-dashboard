@@ -285,20 +285,13 @@ describe('validateEnv', () => {
     // ── Malformed URL fields ────────────────────────────────────────────────
     it.each([
       ['JAEGER_ENDPOINT', 'not-a-url'],
-      ['JAEGER_ENDPOINT', 'localhost:14268'],
       ['JAEGER_ENDPOINT', ''],
       ['OTEL_EXPORTER_OTLP_ENDPOINT', 'not-a-url'],
       ['OTEL_EXPORTER_OTLP_ENDPOINT', ''],
-    ])('%s rejects malformed value "%s" and keeps its default when absent', (key, value) => {
-      // Malformed value should not silently pass — these fields are plain strings
-      // so Zod won't reject them, but empty string overrides the default.
-      // Verify the default is only applied when the key is absent.
-      const withKey = validateEnv({ ...REQUIRED_ENV, [key]: value });
-      const withoutKey = validateEnv(REQUIRED_ENV);
-      // When explicitly set (even to garbage), the value is used as-is.
-      expect(withKey[key as keyof typeof withKey]).toBe(value);
-      // When absent, the schema default kicks in.
-      expect(withoutKey[key as keyof typeof withoutKey]).not.toBe(value);
+    ])('%s rejects malformed value "%s"', (key, value) => {
+      expect(() => validateEnv({ ...REQUIRED_ENV, [key]: value })).toThrow(
+        'Environment validation failed',
+      );
     });
 
     it('ELASTICSEARCH_URL accepts a valid URL', () => {

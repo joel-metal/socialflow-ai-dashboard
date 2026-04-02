@@ -61,18 +61,18 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
 
   // ── Observability ─────────────────────────────────────────────────────────
-  OTEL_SERVICE_NAME: z.string().default('socialflow-backend'),
+  OTEL_SERVICE_NAME: z.string().min(1, 'OTEL_SERVICE_NAME is required').default('socialflow-backend'),
   OTEL_EXPORTER: z.enum(['jaeger', 'honeycomb', 'otlp']).default('jaeger'),
-  JAEGER_ENDPOINT: z.string().default('http://localhost:14268/api/traces'),
+  JAEGER_ENDPOINT: z.string().url('JAEGER_ENDPOINT must be a valid URL').default('http://localhost:14268/api/traces'),
   HONEYCOMB_API_KEY: z.string().optional(),
   HONEYCOMB_DATASET: z.string().default('socialflow-ai-dashboard'),
-  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4318/v1/traces'),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url('OTEL_EXPORTER_OTLP_ENDPOINT must be a valid URL').default('http://localhost:4318/v1/traces'),
   OTEL_DEBUG: z
     .string()
     .optional()
     .transform((v) => v === 'true'),
 
-  ELASTICSEARCH_URL: z.string().optional(),
+  ELASTICSEARCH_URL: z.string().url('ELASTICSEARCH_URL must be a valid URL').optional(),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly']).default('info'),
 
   // ── Alerting ──────────────────────────────────────────────────────────────
@@ -141,6 +141,19 @@ function validateEnv(env: NodeJS.ProcessEnv = process.env): Env {
       .join('\n');
     throw new Error(`Environment validation failed:\n${issues}`);
   }
+
+  // Emit startup diagnostics for telemetry configuration
+  console.log(`[Telemetry Diagnostics] OTEL_EXPORTER=${result.data.OTEL_EXPORTER}`);
+  if (result.data.OTEL_EXPORTER === 'jaeger') {
+    console.log(`[Telemetry Diagnostics] JAEGER_ENDPOINT=${result.data.JAEGER_ENDPOINT}`);
+  } else if (result.data.OTEL_EXPORTER === 'otlp') {
+    console.log(`[Telemetry Diagnostics] OTEL_EXPORTER_OTLP_ENDPOINT=${result.data.OTEL_EXPORTER_OTLP_ENDPOINT}`);
+  } else if (result.data.OTEL_EXPORTER === 'honeycomb') {
+    console.log(`[Telemetry Diagnostics] HONEYCOMB_DATASET=${result.data.HONEYCOMB_DATASET}`);
+  }
+  console.log(`[Telemetry Diagnostics] OTEL_SERVICE_NAME=${result.data.OTEL_SERVICE_NAME}`);
+  console.log(`[Telemetry Diagnostics] OTEL_DEBUG=${result.data.OTEL_DEBUG}`);
+  console.log(`[Telemetry Diagnostics] LOG_LEVEL=${result.data.LOG_LEVEL}`);
 
   return result.data;
 }
