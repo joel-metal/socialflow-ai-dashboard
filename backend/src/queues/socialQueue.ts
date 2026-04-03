@@ -3,7 +3,7 @@ import { enqueue, enqueueAt } from '../utils/queue';
 
 export const SOCIAL_QUEUE_NAME = 'social-posting';
 
-export type SocialPlatform = 'twitter' | 'facebook' | 'instagram' | 'tiktok' | 'youtube';
+export type SocialPlatform = 'twitter' | 'facebook' | 'instagram' | 'tiktok' | 'youtube' | 'linkedin';
 export type SocialJobType = 'publish-post' | 'schedule-post' | 'delete-post' | 'sync-analytics';
 
 export interface SocialJobData {

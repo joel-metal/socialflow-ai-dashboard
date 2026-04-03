@@ -1,7 +1,7 @@
 /**
  * integrationStatus unit tests
  */
-import { checkIntegrations, getIntegrationSnapshot, _resetSnapshot } from '../../lib/integrationStatus';
+import { checkIntegrations, getIntegrationSnapshot, _resetSnapshot } from '../lib/integrationStatus';
 
 // Minimal env so config validation passes
 process.env.NODE_ENV = 'test';
@@ -11,12 +11,12 @@ process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-32-chars!!!!!';
 process.env.TWITTER_API_KEY = 'test-key';
 process.env.TWITTER_API_SECRET = 'test-secret';
 
-jest.mock('../../lib/logger', () => ({
+jest.mock('../lib/logger', () => ({
   createLogger: () => ({ warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
 
 // Re-import logger mock so we can spy on warn
-import { createLogger } from '../../lib/logger';
+import { createLogger } from '../lib/logger';
 const mockLogger = createLogger('integration-status');
 
 beforeEach(() => {
@@ -33,7 +33,7 @@ beforeEach(() => {
 describe('checkIntegrations — disabled integrations', () => {
   it('returns enabled=false for unconfigured integrations', () => {
     const states = checkIntegrations();
-    const youtube = states.find((s) => s.name === 'youtube')!;
+    const youtube = states.find((s: { name: string }) => s.name === 'youtube')!;
     expect(youtube.enabled).toBe(false);
     expect(youtube.reason).toBeTruthy();
   });
@@ -51,7 +51,7 @@ describe('checkIntegrations — disabled integrations', () => {
     process.env.YOUTUBE_CLIENT_SECRET = 'secret';
     // Reset config singleton so it picks up new env
     jest.resetModules();
-    const { checkIntegrations: check, _resetSnapshot: reset } = require('../../lib/integrationStatus');
+    const { checkIntegrations: check, _resetSnapshot: reset } = require('../lib/integrationStatus');
     reset();
     const states = check();
     const youtube = states.find((s: any) => s.name === 'youtube')!;
@@ -71,7 +71,7 @@ describe('checkIntegrations — REQUIRE_INTEGRATIONS policy', () => {
     process.env.YOUTUBE_CLIENT_SECRET = 'secret';
     process.env.REQUIRE_INTEGRATIONS = 'youtube';
     jest.resetModules();
-    const { checkIntegrations: check, _resetSnapshot: reset } = require('../../lib/integrationStatus');
+    const { checkIntegrations: check, _resetSnapshot: reset } = require('../lib/integrationStatus');
     reset();
     expect(() => check()).not.toThrow();
   });

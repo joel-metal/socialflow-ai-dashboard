@@ -46,9 +46,7 @@ const serviceAlertConfigSchema = z.object({
 // Schema for service parameter validation
 const serviceParamSchema = z.object({
   service: z.enum(VALID_SERVICES, {
-    errorMap: () => ({
-      message: `Invalid service name. Must be one of: ${VALID_SERVICES.join(', ')}`,
-    }),
+    error: `Invalid service name. Must be one of: ${VALID_SERVICES.join(', ')}`,
   }),
 });
 

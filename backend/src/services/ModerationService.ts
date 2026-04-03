@@ -325,3 +325,6 @@ export const ModerationService = {
     };
   },
 };
+
+// Named export alias for backward compatibility
+export const moderate = ModerationService.moderate.bind(ModerationService);

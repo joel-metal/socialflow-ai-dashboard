@@ -27,10 +27,30 @@ let twitterWebhookWorker: Worker | null = null;
 let isShuttingDown = false;
 
 /**
+ * Dependencies injectable for testing
+ */
+export interface ShutdownDeps {
+  server: import('http').Server | null;
+  webhookWorker: import('bullmq').Worker | null;
+  twitterWebhookWorker: import('bullmq').Worker | null;
+}
+
+/**
  * Graceful shutdown handler
  * Closes all connections and cleans up resources before exiting
  */
-const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<void> => {
+export const gracefulShutdown = async (
+  signal: string,
+  exitCode: number = 0,
+  deps?: ShutdownDeps,
+  opts?: { exit?: (code: number) => void; timeoutMs?: number },
+): Promise<void> => {
+  const doExit = opts?.exit ?? ((code) => process.exit(code));
+  const timeoutMs = opts?.timeoutMs ?? 30000;
+  const srv = deps?.server ?? serverInstance;
+  const ww = deps?.webhookWorker ?? webhookWorker;
+  const tww = deps?.twitterWebhookWorker ?? twitterWebhookWorker;
+
   // Prevent multiple shutdown calls
   if (isShuttingDown) {
     logger.warn('Shutdown already in progress, ignoring duplicate signal');
@@ -43,14 +63,14 @@ const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<v
   // Set a timeout to force exit if graceful shutdown takes too long
   const forceExitTimeout = setTimeout(() => {
     logger.error('Graceful shutdown timeout exceeded, forcing exit');
-    process.exit(1);
-  }, 30000); // 30 seconds timeout
+    doExit(1);
+  }, timeoutMs);
 
   try {
     // Stop accepting new connections
-    if (serverInstance) {
+    if (srv) {
       await new Promise<void>((resolve, reject) => {
-        serverInstance!.close((err) => {
+        srv.close((err) => {
           if (err) {
             logger.error('Error closing HTTP server', { error: err });
             reject(err);
@@ -67,9 +87,7 @@ const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<v
       await stopWorkerMonitor();
       logger.info('Worker monitor stopped');
     } catch (error) {
-      logger.error('Failed to stop worker monitor', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error('Failed to stop worker monitor', { error: error instanceof Error ? error.message : String(error) });
     }
 
     // Stop health monitoring job
@@ -77,29 +95,23 @@ const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<v
       await stopHealthMonitoringJob();
       logger.info('Health monitoring job stopped');
     } catch (error) {
-      logger.error('Failed to stop health monitoring job', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error('Failed to stop health monitoring job', { error: error instanceof Error ? error.message : String(error) });
     }
 
     // Stop webhook delivery worker
     try {
-      if (webhookWorker) await (webhookWorker as import('bullmq').Worker).close();
+      if (ww) await ww.close();
       logger.info('Webhook worker stopped');
     } catch (error) {
-      logger.error('Failed to stop webhook worker', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error('Failed to stop webhook worker', { error: error instanceof Error ? error.message : String(error) });
     }
 
     // Stop Twitter webhook worker
     try {
-      if (twitterWebhookWorker) await twitterWebhookWorker.close();
+      if (tww) await tww.close();
       logger.info('Twitter webhook worker stopped');
     } catch (error) {
-      logger.error('Failed to stop Twitter webhook worker', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error('Failed to stop Twitter webhook worker', { error: error instanceof Error ? error.message : String(error) });
     }
 
     // Stop data pruning job
@@ -107,9 +119,7 @@ const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<v
       await stopDataPruningJob();
       logger.info('Data pruning job stopped');
     } catch (error) {
-      logger.error('Failed to stop data pruning job', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error('Failed to stop data pruning job', { error: error instanceof Error ? error.message : String(error) });
     }
 
     // Stop YouTube sync job
@@ -117,9 +127,7 @@ const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<v
       await stopYouTubeSyncJob();
       logger.info('YouTube sync job stopped');
     } catch (error) {
-      logger.error('Failed to stop YouTube sync job', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error('Failed to stop YouTube sync job', { error: error instanceof Error ? error.message : String(error) });
     }
 
     // Close job queues and workers
@@ -128,9 +136,7 @@ const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<v
       await closeRedisClient();
       logger.info('All queues and workers closed successfully');
     } catch (error) {
-      logger.error('Failed to close queues', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error('Failed to close queues', { error: error instanceof Error ? error.message : String(error) });
     }
 
     // Close database connections
@@ -138,20 +144,16 @@ const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<v
       await prisma.$disconnect();
       logger.info('Database connections closed');
     } catch (error) {
-      logger.error('Failed to close database connections', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error('Failed to close database connections', { error: error instanceof Error ? error.message : String(error) });
     }
 
     clearTimeout(forceExitTimeout);
     logger.info('Shutdown complete');
-    process.exit(exitCode);
+    doExit(exitCode);
   } catch (error) {
     clearTimeout(forceExitTimeout);
-    logger.error('Error during graceful shutdown', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    process.exit(1);
+    logger.error('Error during graceful shutdown', { error: error instanceof Error ? error.message : String(error) });
+    doExit(1);
   }
 };
 
@@ -203,7 +205,8 @@ process.on('SIGTERM', () => {
 /**
  * Bootstrap the application
  */
-const bootstrap = async (): Promise<void> => {
+export const bootstrap = async (exit?: (code: number) => void): Promise<void> => {
+  const doExit = exit ?? ((code) => process.exit(code));
   try {
     // Initialize job queue workers
     logger.info('Initializing job queue workers...');
@@ -298,8 +301,16 @@ const bootstrap = async (): Promise<void> => {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
-    process.exit(1);
+    doExit(1);
   }
 };
 
 void bootstrap();
+
+// ── Test-only exports ─────────────────────────────────────────────────────────
+export const _resetShutdownState = (): void => {
+  isShuttingDown = false;
+  serverInstance = null;
+  webhookWorker = null;
+  twitterWebhookWorker = null;
+};

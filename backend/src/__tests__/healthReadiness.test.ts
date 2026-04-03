@@ -4,7 +4,7 @@
 import request from 'supertest';
 import express from 'express';
 
-jest.mock('../../lib/integrationStatus', () => ({
+jest.mock('../lib/integrationStatus', () => ({
   getIntegrationSnapshot: jest.fn(),
 }));
 jest.mock('../../services/serviceFactory', () => ({
@@ -13,8 +13,8 @@ jest.mock('../../services/serviceFactory', () => ({
   getAlertConfigService: jest.fn(),
 }));
 
-import { getIntegrationSnapshot } from '../../lib/integrationStatus';
-import healthRouter from '../../routes/health';
+import { getIntegrationSnapshot } from '../lib/integrationStatus';
+import healthRouter from '../routes/health';
 
 const app = express();
 app.use('/health', healthRouter);

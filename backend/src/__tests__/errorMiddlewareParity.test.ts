@@ -43,7 +43,7 @@ const errors: ErrorFactory = {
 
 function makeApp(
   handler: ErrorRequestHandler,
-  notFound: (req: Request, res: Response) => void,
+  notFound: (req: Request, res: Response, next: NextFunction) => void,
   errors: ErrorFactory,
   env = 'test',
 ) {

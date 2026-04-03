@@ -70,8 +70,3 @@ export const getDataRetentionConfig = (): DataRetentionConfig => ({
   missingPathPolicy: config.DATA_RETENTION_MISSING_PATH_POLICY,
   missingPathAlertThreshold: config.DATA_RETENTION_MISSING_PATH_ALERT_THRESHOLD,
 });
-
-export const getAdminIpWhitelist = (): string[] => {
-  const raw = process.env.ADMIN_IP_WHITELIST ?? '';
-  return raw.split(',').map((v) => v.trim()).filter(Boolean);
-};

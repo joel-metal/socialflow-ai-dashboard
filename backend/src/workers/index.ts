@@ -43,7 +43,7 @@ async function persistAIResult(
       userId: job.data.userId,
       organizationId: job.data.organizationId ?? null,
       jobType: job.data.type,
-      output,
+      output: output as object,
       traceId: currentTraceId() ?? null,
     },
   });
@@ -125,7 +125,7 @@ const aiProcessors: Record<AIJobType, (job: Job<AIJobData>) => Promise<unknown>>
 function requireToken(job: Job<SocialJobData>): string {
   const token = job.data.payload.options?.accessToken as string | undefined;
   if (!token) {
-    throw new ValidationError('accessToken is required in payload.options', 'MISSING_ACCESS_TOKEN');
+    throw new ValidationError('accessToken is required in payload.options', undefined, 'MISSING_ACCESS_TOKEN');
   }
   return token;
 }
@@ -136,7 +136,7 @@ const socialProcessors: Record<SocialJobType, (job: Job<SocialJobData>) => Promi
     logger.info('Publishing post', { jobId: job.id, platform, userId });
 
     if (!payload.content && !payload.mediaUrls?.length) {
-      throw new ValidationError('content or mediaUrls required for publish-post', 'INVALID_PAYLOAD');
+      throw new ValidationError('content or mediaUrls required for publish-post', undefined, 'INVALID_PAYLOAD');
     }
 
     const token = requireToken(job);
@@ -148,7 +148,7 @@ const socialProcessors: Record<SocialJobType, (job: Job<SocialJobData>) => Promi
       }
       case 'linkedin': {
         const authorUrn = payload.options?.authorUrn as string;
-        if (!authorUrn) throw new ValidationError('authorUrn required for LinkedIn', 'INVALID_PAYLOAD');
+        if (!authorUrn) throw new ValidationError('authorUrn required for LinkedIn', undefined, 'INVALID_PAYLOAD');
         const result = await linkedInService.shareContent(token, {
           authorUrn,
           text: payload.content ?? '',
@@ -160,7 +160,7 @@ const socialProcessors: Record<SocialJobType, (job: Job<SocialJobData>) => Promi
       }
       case 'instagram': {
         const igAccountId = payload.options?.igAccountId as string;
-        if (!igAccountId) throw new ValidationError('igAccountId required for Instagram', 'INVALID_PAYLOAD');
+        if (!igAccountId) throw new ValidationError('igAccountId required for Instagram', undefined, 'INVALID_PAYLOAD');
         const result = await instagramService.publish({
           igAccountId,
           accessToken: token,
@@ -172,7 +172,7 @@ const socialProcessors: Record<SocialJobType, (job: Job<SocialJobData>) => Promi
       }
       case 'tiktok': {
         const videoUrl = payload.mediaUrls?.[0];
-        if (!videoUrl) throw new ValidationError('mediaUrls[0] required for TikTok video', 'INVALID_PAYLOAD');
+        if (!videoUrl) throw new ValidationError('mediaUrls[0] required for TikTok video', undefined, 'INVALID_PAYLOAD');
         const result = await tiktokService.uploadVideoFromUrl(token, {
           videoSource: videoUrl,
           sourceType: 'PULL_FROM_URL',
@@ -182,8 +182,8 @@ const socialProcessors: Record<SocialJobType, (job: Job<SocialJobData>) => Promi
       }
       case 'facebook': {
         const pageId = payload.options?.pageId as string;
-        if (!pageId) throw new ValidationError('pageId required for Facebook', 'INVALID_PAYLOAD');
-        if (!payload.content) throw new ValidationError('content required for Facebook', 'INVALID_PAYLOAD');
+        if (!pageId) throw new ValidationError('pageId required for Facebook', undefined, 'INVALID_PAYLOAD');
+        if (!payload.content) throw new ValidationError('content required for Facebook', undefined, 'INVALID_PAYLOAD');
         const result = await facebookService.postToPage({
           pageId,
           message: payload.content,
@@ -191,7 +191,7 @@ const socialProcessors: Record<SocialJobType, (job: Job<SocialJobData>) => Promi
         return { postId: result.id, platform, publishedAt: new Date().toISOString() };
       }
       default:
-        throw new ValidationError(`Unsupported platform: ${platform}`, 'UNSUPPORTED_PLATFORM');
+        throw new ValidationError(`Unsupported platform: ${platform}`, undefined, 'UNSUPPORTED_PLATFORM');
     }
   },
 
@@ -200,10 +200,10 @@ const socialProcessors: Record<SocialJobType, (job: Job<SocialJobData>) => Promi
     logger.info('Scheduling post', { jobId: job.id, platform, userId, scheduledAt: payload.scheduledAt });
 
     if (!payload.scheduledAt) {
-      throw new ValidationError('scheduledAt is required for schedule-post', 'INVALID_PAYLOAD');
+      throw new ValidationError('scheduledAt is required for schedule-post', undefined, 'INVALID_PAYLOAD');
     }
     if (!payload.content && !payload.mediaUrls?.length) {
-      throw new ValidationError('content or mediaUrls required for schedule-post', 'INVALID_PAYLOAD');
+      throw new ValidationError('content or mediaUrls required for schedule-post', undefined, 'INVALID_PAYLOAD');
     }
 
     const token = requireToken(job);
@@ -212,7 +212,7 @@ const socialProcessors: Record<SocialJobType, (job: Job<SocialJobData>) => Promi
     switch (platform) {
       case 'instagram': {
         const igAccountId = payload.options?.igAccountId as string;
-        if (!igAccountId) throw new ValidationError('igAccountId required for Instagram', 'INVALID_PAYLOAD');
+        if (!igAccountId) throw new ValidationError('igAccountId required for Instagram', undefined, 'INVALID_PAYLOAD');
         const result = await instagramService.publish({
           igAccountId,
           accessToken: token,
@@ -242,7 +242,7 @@ const socialProcessors: Record<SocialJobType, (job: Job<SocialJobData>) => Promi
     logger.info('Deleting post', { jobId: job.id, platform, userId, postId: payload.postId });
 
     if (!payload.postId) {
-      throw new ValidationError('postId is required for delete-post', 'INVALID_PAYLOAD');
+      throw new ValidationError('postId is required for delete-post', undefined, 'INVALID_PAYLOAD');
     }
 
     const token = requireToken(job);

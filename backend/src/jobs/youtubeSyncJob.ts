@@ -45,14 +45,16 @@ export const startYouTubeSyncJob = async (): Promise<void> => {
         }
 
         const videoIds = await youTubeService.listChannelVideos(token);
-        const stats = await youTubeService.getVideoStats(token, videoIds);
+        const resolvedIds = Array.isArray(videoIds) ? videoIds : [];
+        const stats = await youTubeService.getVideoStats(token, resolvedIds);
+        const resolvedStats = Array.isArray(stats) ? stats : [];
 
         logger.info('YouTube analytics synced', {
           jobId: job.id,
-          videoCount: stats.length,
+          videoCount: resolvedStats.length,
         });
 
-        return { synced: stats.length, timestamp: new Date().toISOString() };
+        return { synced: resolvedStats.length, timestamp: new Date().toISOString() };
       },
       { connection: getRedisConnection() },
     );

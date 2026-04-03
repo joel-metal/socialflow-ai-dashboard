@@ -388,6 +388,13 @@ export class QueueManager {
   }
 
   /**
+   * Refresh queue metrics (no-op stub — metrics are fetched on demand via getQueueStats)
+   */
+  async refreshQueueMetrics(): Promise<void> {
+    // Metrics are computed on-demand; nothing to pre-fetch here.
+  }
+
+  /**
    * Close all queues and workers gracefully
    */
   async closeAll(): Promise<void> {

@@ -27,9 +27,9 @@ class AuditLogger {
         data: {
           userId: ctx.actorId,
           action: ctx.action,
-          resource: ctx.resourceType,
-          resourceId: ctx.resourceId,
-          metadata: ctx.metadata ?? undefined,
+          resource: ctx.resourceType ?? null,
+          resourceId: ctx.resourceId ?? null,
+          metadata: ctx.metadata ? (ctx.metadata as object) : undefined,
           ipAddress: ctx.ip,
           userAgent: ctx.userAgent,
         },
