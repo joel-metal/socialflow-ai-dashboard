@@ -14,6 +14,55 @@ The backend wraps every external API call with [opossum](https://nodeshift.dev/o
 
 ---
 
+## HALF_OPEN state — probe request behaviour
+
+When the cooldown (`resetTimeout`) elapses after a breaker opens, opossum transitions the breaker to **HALF_OPEN** and allows a single probe request through to the upstream service.
+
+### Probe count and success threshold
+
+| Parameter | opossum default | How to override |
+|-----------|----------------|-----------------|
+| Probe requests allowed | **1** (one at a time) | Not configurable — opossum always uses exactly one probe per half-open window |
+| Successes required to close | **1** (the single probe must succeed) | Not configurable in opossum v8; the breaker closes on the first successful probe |
+| Probe timeout | Same as `timeout` option | Set a lower `timeout` value in the service config if you want faster probe resolution |
+
+opossum does not expose a `halfOpenRequests` option — the single-probe behaviour is hard-coded in the library. If you need multi-probe confirmation before closing, you must implement a custom wrapper that keeps the breaker open until N consecutive successes are observed.
+
+### Overriding the cooldown (resetTimeout)
+
+Each service config in `backend/src/config/circuitBreaker.config.ts` sets `resetTimeout` (milliseconds before entering HALF_OPEN):
+
+```ts
+// Example: shorten the half-open window for twitter to 15 s
+const customConfig: Partial<CircuitBreakerConfig> = { resetTimeout: 15000 };
+circuitBreakerService.getBreaker('twitter', customConfig);
+```
+
+### What happens during HALF_OPEN
+
+1. The breaker allows **exactly one** request through.
+2. All other concurrent requests are **rejected immediately** (same as OPEN) until the probe resolves.
+3. If the probe **succeeds** → breaker transitions to **CLOSED**, normal traffic resumes.
+4. If the probe **fails** → breaker transitions back to **OPEN**, `resetTimeout` resets and the cooldown starts again.
+
+### Per-service resetTimeout reference
+
+| Service | resetTimeout |
+|---------|-------------|
+| AI (Gemini) | 60 s |
+| Translation | 45 s |
+| Twitter / X | 30 s |
+| Facebook | 60 s |
+| Instagram | 60 s |
+| YouTube | 60 s |
+| TikTok | 60 s |
+| LinkedIn | 60 s |
+| IPFS | 40 s |
+| Price | 60 s |
+| Blockchain | 20 s |
+
+---
+
 ## Per-service configuration and degraded response contract
 
 Each breaker has its own thresholds and fallback strategy. The table below documents what a client receives when the breaker is **open**.
