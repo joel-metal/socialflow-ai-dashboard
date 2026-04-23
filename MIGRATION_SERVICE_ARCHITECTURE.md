@@ -136,7 +136,7 @@ Status Reporting                 [███ 3 tests]
 ## Configuration Options
 
 ```typescript
-// Tunable constants in constants.ts
+// Tunable constants in backend/src/admin/constants.ts
 MIGRATION_LOCK_TIMEOUT_MS = 5 * 60 * 1000;    // 5 minutes (deadlock timeout)
 MIGRATION_LOCK_RETRY_INTERVAL_MS = 100;       // Wait 100ms between retries
 MIGRATION_LOCK_MAX_RETRIES = 300;             // Max 30 seconds total wait
@@ -152,7 +152,7 @@ MIGRATION_LOCK_MAX_RETRIES = 300;             // Max 30 seconds total wait
 ✅ **Zero breaking changes**
 - Old migrations (without metadata) still marked as applied
 - Checksum stored on next successful run
-- API unchanged (`listMigrations`, `runMigrations`)
+- API unchanged (`listMigrations`, `runMigrations` in `backend/src/admin/migrationService.ts`)
 - Dry-run semantics identical
 
 ## Monitoring
@@ -171,7 +171,8 @@ MIGRATION_LOCK_MAX_RETRIES = 300;             // Max 30 seconds total wait
 ### Admin Dashboard Integration
 
 ```typescript
-// GET /admin/migrations
+// listMigrations() in backend/src/admin/migrationService.ts
+// Consumed by admin tooling and CLI commands in backend/src/cli/index.ts
 [
   {
     name: "20260324_sync_configured_queues",
