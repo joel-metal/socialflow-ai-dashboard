@@ -171,3 +171,6 @@ jobs:
               issue_number: context.issue.number,
               body,
             });
+
+      - name: Enforce coverage thresholds
+        run: node .github/scripts/post-coverage-comment.mjs backend/coverage/coverage-summary.json

@@ -67,3 +67,21 @@ export function checkThresholds(metrics, thresholds = THRESHOLDS) {
   );
   return { passed: violations.length === 0, violations };
 }
+
+// When executed directly (node .github/scripts/post-coverage-comment.mjs <path>)
+// exit non-zero if any threshold is violated so CI fails on regression.
+if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
+  const summaryPath = process.argv[2] ?? 'backend/coverage/coverage-summary.json';
+  const summary = loadSummary(summaryPath);
+  if (!summary) {
+    console.error(`Coverage summary not found: ${summaryPath}`);
+    process.exit(1);
+  }
+  const { passed, violations } = checkThresholds(summary);
+  if (!passed) {
+    console.error(`Coverage thresholds not met: ${violations.join(', ')}`);
+    process.exit(1);
+  }
+  console.log('All coverage thresholds met.');
+  process.exit(0);
+}
