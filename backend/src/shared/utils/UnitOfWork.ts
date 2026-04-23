@@ -81,16 +81,31 @@ export class UnitOfWork {
   /**
    * Run an array of independent operations in parallel inside one transaction.
    * Use `executeSequential` when operations depend on each other.
+   *
+   * If any operations fail, an AggregateError is thrown containing every
+   * individual failure so the caller can inspect all errors at once.
    */
   async executeParallel<T>(
     operations: Array<(tx: TransactionClient) => Promise<T>>,
     options?: TransactionOptions,
   ): Promise<T[]> {
     logger.debug('Starting parallel Unit of Work transaction');
-    return this.prisma.$transaction(
-      (tx) => Promise.all(operations.map((op) => op(tx))),
-      options,
-    );
+    return this.prisma.$transaction(async (tx) => {
+      const settled = await Promise.allSettled(operations.map((op) => op(tx)));
+
+      const failures = settled
+        .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+        .map((r) => r.reason as Error);
+
+      if (failures.length > 0) {
+        logger.error('executeParallel: %d operation(s) failed', failures.length, {
+          errors: failures.map((e) => e?.message),
+        });
+        throw new AggregateError(failures, `${failures.length} parallel operation(s) failed`);
+      }
+
+      return (settled as PromiseFulfilledResult<T>[]).map((r) => r.value);
+    }, options);
   }
 }
 
