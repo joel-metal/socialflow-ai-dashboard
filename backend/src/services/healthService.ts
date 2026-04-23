@@ -10,6 +10,7 @@ const logger = createLogger('health-service');
 
 const MIN_TIMEOUT_MS = 100;
 const UNHEALTHY_THRESHOLD = 3;
+const S3_HEALTH_KEY = '.health-check';
 
 export interface DependencyStatus {
   status: 'healthy' | 'degraded' | 'unhealthy';
@@ -106,15 +107,32 @@ export class HealthService {
 
     try {
       const region = process.env.AWS_REGION ?? 'us-east-1';
-      const url = `https://${bucket}.s3.${region}.amazonaws.com/`;
-      const res = await withTimeout(fetch(url, { method: 'HEAD' }), timeout, 's3');
-      // 200, 403, 404 all indicate S3 is reachable
-      if (res.status === 200 || res.status === 403 || res.status === 404) {
-        this.resetFailure('s3');
-        return { status: 'healthy', latency: Date.now() - start, lastChecked: new Date().toISOString(), errorRate: 0 };
+
+      // PutObject — write a tiny health-check object
+      const putUrl = `https://${bucket}.s3.${region}.amazonaws.com/${S3_HEALTH_KEY}`;
+      const putRes = await withTimeout(
+        fetch(putUrl, { method: 'PUT', body: 'ok', headers: { 'Content-Type': 'text/plain', 'Content-Length': '2' } }),
+        timeout,
+        's3-put',
+      );
+      if (putRes.status !== 200 && putRes.status !== 204) {
+        const count = this.recordFailure('s3');
+        return { status: this.statusFromCount(count), latency: Date.now() - start, lastChecked: new Date().toISOString(), errorRate: 100, error: `S3 PutObject returned ${putRes.status}` };
       }
-      const count = this.recordFailure('s3');
-      return { status: this.statusFromCount(count), latency: Date.now() - start, lastChecked: new Date().toISOString(), errorRate: 100, error: `S3 returned ${res.status}` };
+
+      // DeleteObject — clean up immediately
+      const delRes = await withTimeout(
+        fetch(putUrl, { method: 'DELETE' }),
+        timeout,
+        's3-delete',
+      );
+      if (delRes.status !== 200 && delRes.status !== 204 && delRes.status !== 404) {
+        const count = this.recordFailure('s3');
+        return { status: this.statusFromCount(count), latency: Date.now() - start, lastChecked: new Date().toISOString(), errorRate: 100, error: `S3 DeleteObject returned ${delRes.status}` };
+      }
+
+      this.resetFailure('s3');
+      return { status: 'healthy', latency: Date.now() - start, lastChecked: new Date().toISOString(), errorRate: 0 };
     } catch (err) {
       const count = this.recordFailure('s3');
       const error = err instanceof Error ? err.message : String(err);

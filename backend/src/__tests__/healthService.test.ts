@@ -163,15 +163,15 @@ describe('HealthService — real dependency probes', () => {
       }
     });
 
-    it('returns healthy when S3 bucket is accessible', async () => {
+    it('returns healthy when S3 write probe succeeds', async () => {
       process.env.AWS_ACCESS_KEY_ID = 'test-key';
       process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
       process.env.AWS_S3_BUCKET = 'test-bucket';
 
-      (global.fetch as jest.Mock).mockResolvedValue({
-        status: 200,
-        ok: true,
-      });
+      // PUT succeeds, DELETE succeeds
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ status: 200, ok: true })
+        .mockResolvedValueOnce({ status: 204, ok: true });
 
       const svc = makeService();
       const result = await svc.checkS3();
@@ -179,7 +179,11 @@ describe('HealthService — real dependency probes', () => {
       expect(result.status).toBe('healthy');
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('test-bucket'),
-        expect.objectContaining({ method: 'HEAD' }),
+        expect.objectContaining({ method: 'PUT' }),
+      );
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('.health-check'),
+        expect.objectContaining({ method: 'DELETE' }),
       );
     });
 
@@ -195,22 +199,36 @@ describe('HealthService — real dependency probes', () => {
       expect(result.error).toContain('AWS_S3_BUCKET');
     });
 
-    it('accepts 403 and 404 as connectivity indicators', async () => {
+    it('returns degraded when PutObject is denied (write permission missing)', async () => {
       process.env.AWS_ACCESS_KEY_ID = 'test-key';
       process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
       process.env.AWS_S3_BUCKET = 'test-bucket';
 
-      const svc = makeService();
-
-      // 403 Forbidden
+      // PUT returns 403 Forbidden — no write permission
       (global.fetch as jest.Mock).mockResolvedValueOnce({ status: 403, ok: false });
-      let result = await svc.checkS3();
-      expect(result.status).toBe('healthy');
 
-      // 404 Not Found
-      (global.fetch as jest.Mock).mockResolvedValueOnce({ status: 404, ok: false });
-      result = await svc.checkS3();
-      expect(result.status).toBe('healthy');
+      const svc = makeService();
+      const result = await svc.checkS3();
+
+      expect(result.status).toBe('degraded');
+      expect(result.error).toContain('PutObject returned 403');
+    });
+
+    it('returns degraded when DeleteObject fails after successful put', async () => {
+      process.env.AWS_ACCESS_KEY_ID = 'test-key';
+      process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+      process.env.AWS_S3_BUCKET = 'test-bucket';
+
+      // PUT succeeds, DELETE returns unexpected error
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ status: 200, ok: true })
+        .mockResolvedValueOnce({ status: 500, ok: false });
+
+      const svc = makeService();
+      const result = await svc.checkS3();
+
+      expect(result.status).toBe('degraded');
+      expect(result.error).toContain('DeleteObject returned 500');
     });
 
     it('returns unhealthy after 3 S3 failures', async () => {
@@ -330,7 +348,11 @@ describe('HealthService — real dependency probes', () => {
     it('returns healthy when all dependencies are healthy', async () => {
       (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '1': 1 }]);
       (redis.ping as jest.Mock).mockResolvedValue('PONG');
-      (global.fetch as jest.Mock).mockResolvedValue({ status: 200, ok: true });
+      // S3 write probe: PUT then DELETE
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ status: 200, ok: true })  // S3 PUT
+        .mockResolvedValueOnce({ status: 204, ok: true })  // S3 DELETE
+        .mockResolvedValue({ status: 200, ok: true });     // Twitter
 
       process.env.AWS_ACCESS_KEY_ID = 'test-key';
       process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
@@ -350,7 +372,11 @@ describe('HealthService — real dependency probes', () => {
     it('returns degraded when one dependency is degraded', async () => {
       (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '1': 1 }]);
       (redis.ping as jest.Mock).mockRejectedValue(new Error('Connection failed'));
-      (global.fetch as jest.Mock).mockResolvedValue({ status: 200, ok: true });
+      // S3 write probe: PUT then DELETE
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ status: 200, ok: true })  // S3 PUT
+        .mockResolvedValueOnce({ status: 204, ok: true })  // S3 DELETE
+        .mockResolvedValue({ status: 200, ok: true });     // Twitter
 
       process.env.AWS_ACCESS_KEY_ID = 'test-key';
       process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
@@ -392,7 +418,11 @@ describe('HealthService — real dependency probes', () => {
 
       (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '1': 1 }]);
       (redis.ping as jest.Mock).mockResolvedValue('PONG');
-      (global.fetch as jest.Mock).mockResolvedValue({ status: 200, ok: true });
+      // S3 write probe: PUT then DELETE
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ status: 200, ok: true })  // S3 PUT
+        .mockResolvedValueOnce({ status: 204, ok: true })  // S3 DELETE
+        .mockResolvedValue({ status: 200, ok: true });     // Twitter
 
       process.env.AWS_ACCESS_KEY_ID = 'test-key';
       process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
@@ -422,7 +452,11 @@ describe('HealthService — real dependency probes', () => {
     it('does not throw when no healthMonitor is set', async () => {
       (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '1': 1 }]);
       (redis.ping as jest.Mock).mockResolvedValue('PONG');
-      (global.fetch as jest.Mock).mockResolvedValue({ status: 200, ok: true });
+      // S3 write probe: PUT then DELETE
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ status: 200, ok: true })  // S3 PUT
+        .mockResolvedValueOnce({ status: 204, ok: true })  // S3 DELETE
+        .mockResolvedValue({ status: 200, ok: true });     // Twitter
 
       process.env.AWS_ACCESS_KEY_ID = 'test-key';
       process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
@@ -436,7 +470,11 @@ describe('HealthService — real dependency probes', () => {
     it('includes latency and error messages for all dependencies', async () => {
       (prisma.$queryRaw as jest.Mock).mockRejectedValue(new Error('Connection refused'));
       (redis.ping as jest.Mock).mockResolvedValue('PONG');
-      (global.fetch as jest.Mock).mockResolvedValue({ status: 200, ok: true });
+      // S3 write probe: PUT then DELETE
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ status: 200, ok: true })  // S3 PUT
+        .mockResolvedValueOnce({ status: 204, ok: true })  // S3 DELETE
+        .mockResolvedValue({ status: 200, ok: true });     // Twitter
 
       process.env.AWS_ACCESS_KEY_ID = 'test-key';
       process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
