@@ -4,7 +4,7 @@ import app from '../../app';
 import { UserStore } from '../../models/User';
 
 afterEach(() => {
-  (UserStore as any).users = new Map();
+  UserStore.clear();
 });
 
 // ── Register ──────────────────────────────────────────────────────────────────
