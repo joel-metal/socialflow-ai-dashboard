@@ -122,16 +122,21 @@ export class FeatureService {
   }
 
   /**
-   * Deterministic bucket assignment using djb2 hash.
+   * Deterministic bucket assignment using FNV-1a 32-bit hash.
+   * FNV-1a distributes sequential integer IDs evenly, avoiding the clustering
+   * that modulo on raw numeric IDs produces.
    * Returns a number 0–99 so we can compare against a percentage.
    */
   private hashBucket(flagName: string, userId: string): number {
     const input = `${flagName}:${userId}`;
-    let hash = 5381;
+    // FNV-1a 32-bit constants
+    let hash = 0x811c9dc5; // offset basis
     for (let i = 0; i < input.length; i++) {
-      hash = (hash * 33) ^ input.charCodeAt(i);
+      hash ^= input.charCodeAt(i);
+      // Multiply by FNV prime (0x01000193), keeping result in 32-bit range
+      hash = (hash * 0x01000193) >>> 0;
     }
-    return Math.abs(hash) % 100;
+    return hash % 100;
   }
 }
 
