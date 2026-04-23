@@ -23,5 +23,15 @@ module.exports = {
       },
     },
     '<rootDir>/backend',
+    {
+      displayName: 'services',
+      preset: 'ts-jest',
+      testEnvironment: 'node',
+      roots: ['<rootDir>/services'],
+      testMatch: ['**/__tests__/**/*.test.ts'],
+      transform: {
+        '^.+\\.ts$': ['ts-jest', { tsconfig: { esModuleInterop: true } }],
+      },
+    },
   ],
 };
