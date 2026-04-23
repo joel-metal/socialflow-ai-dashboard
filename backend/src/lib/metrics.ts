@@ -1,4 +1,7 @@
 import { Registry, Histogram, Counter, Gauge, collectDefaultMetrics } from 'prom-client';
+import { createLogger } from './logger';
+
+const logger = createLogger('metrics');
 
 export const register = new Registry();
 
@@ -84,5 +87,6 @@ export function resolveCategory(path: string): string {
   if (/^\/(health|status)/.test(path) || /\/health/.test(path)) return 'health';
   if (/\/auth/.test(path)) return 'auth';
   if (/\/(ai|tts|translation)/.test(path)) return 'ai';
+  logger.warn(`resolveCategory: unmapped route prefix — falling back to "general"`, { path });
   return 'general';
 }
