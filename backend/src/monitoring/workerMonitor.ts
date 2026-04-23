@@ -61,6 +61,7 @@ interface RegisteredWorker {
   restartCount: number;
   lastRestartAt?: string;
   listenerAttached: boolean;
+  lastErrorMessage?: string;
 }
 
 interface MonitoredQueue {
@@ -138,7 +139,9 @@ export class WorkerMonitor {
         metadata: { queueName, jobId },
       });
 
-      await this.restartWorkersForQueue(queueName, `stalled job detected: ${String(jobId)}`);
+      await this.restartWorkersForQueue(queueName, {
+        reason: `stalled job detected: ${String(jobId)}`,
+      });
     });
 
     monitoredQueue.events.on('failed', async ({ jobId, failedReason, prev }) => {
@@ -331,7 +334,12 @@ export class WorkerMonitor {
         },
       });
 
-      await this.restartWorker(worker.workerName, `worker error: ${error.message}`);
+      worker.lastErrorMessage = error.message;
+
+      await this.restartWorker(worker.workerName, {
+        reason: `worker error: ${error.message}`,
+        lastErrorMessage: error.message,
+      });
     };
 
     worker.worker.on('error', errorListener);
@@ -397,7 +405,9 @@ export class WorkerMonitor {
             },
           });
 
-          await this.restartWorkersForQueue(queue.queueName, 'stuck active jobs detected');
+          await this.restartWorkersForQueue(queue.queueName, {
+            reason: 'stuck active jobs detected',
+          });
         }
       } catch (error) {
         await this.sendAlert({
@@ -413,21 +423,29 @@ export class WorkerMonitor {
     }
   }
 
-  private async restartWorkersForQueue(queueName: string, reason: string): Promise<void> {
+  private async restartWorkersForQueue(
+    queueName: string,
+    context: { reason: string; lastErrorMessage?: string },
+  ): Promise<void> {
     const workerNames = Array.from(this.workers.values())
       .filter((worker) => worker.queueName === queueName)
       .map((worker) => worker.workerName);
 
     for (const workerName of workerNames) {
-      await this.restartWorker(workerName, reason);
+      await this.restartWorker(workerName, context);
     }
   }
 
-  private async restartWorker(workerName: string, reason: string): Promise<void> {
+  private async restartWorker(
+    workerName: string,
+    context: { reason: string; lastErrorMessage?: string },
+  ): Promise<void> {
     const worker = this.workers.get(workerName);
     if (!worker) {
       return;
     }
+
+    const lastErrorMessage = context.lastErrorMessage ?? worker.lastErrorMessage;
 
     const now = Date.now();
     worker.restartHistory = worker.restartHistory.filter((timestamp) => now - timestamp <= HOUR_MS);
@@ -441,7 +459,8 @@ export class WorkerMonitor {
         metadata: {
           workerName,
           queueName: worker.queueName,
-          reason,
+          reason: context.reason,
+          lastErrorMessage,
           maxRestartsPerHour: this.options.maxRestartsPerHour,
         },
       });
@@ -476,7 +495,8 @@ export class WorkerMonitor {
       metadata: {
         workerName,
         queueName: worker.queueName,
-        reason,
+        reason: context.reason,
+        lastErrorMessage,
         restartCount: worker.restartCount,
       },
     });
@@ -492,7 +512,9 @@ export class WorkerMonitor {
       await this.options.alertHandler(payload);
     } catch (error) {
       this.options.logger.error(
-        `[worker-monitor] Alert handler failed: ${error instanceof Error ? error.message : String(error)}`,
+        `[worker-monitor] Alert handler failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
 

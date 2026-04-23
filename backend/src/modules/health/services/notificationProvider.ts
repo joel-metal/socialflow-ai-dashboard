@@ -16,6 +16,31 @@ export interface NotificationProvider {
   send(alert: AlertPayload): Promise<void>;
 }
 
+function formatAlertSummary(alert: AlertPayload): string {
+  const queueName =
+    typeof alert.details?.queueName === 'string' ? alert.details.queueName : undefined;
+  const lastErrorMessage =
+    typeof alert.details?.lastErrorMessage === 'string'
+      ? alert.details.lastErrorMessage
+      : typeof alert.details?.error === 'string'
+      ? alert.details.error
+      : typeof alert.details?.failedReason === 'string'
+      ? alert.details.failedReason
+      : undefined;
+
+  const context: string[] = [];
+
+  if (queueName) {
+    context.push(`queue=${queueName}`);
+  }
+
+  if (lastErrorMessage) {
+    context.push(`lastError=${lastErrorMessage}`);
+  }
+
+  return context.length > 0 ? `${alert.message} (${context.join(', ')})` : alert.message;
+}
+
 @injectable()
 class SlackNotificationProvider implements NotificationProvider {
   private webhookUrl: string;
@@ -27,12 +52,13 @@ class SlackNotificationProvider implements NotificationProvider {
   async send(alert: AlertPayload): Promise<void> {
     try {
       const color = alert.severity === 'critical' ? 'danger' : 'warning';
+      const summary = formatAlertSummary(alert);
       const payload = {
         attachments: [
           {
             color,
             title: `${alert.severity.toUpperCase()}: ${alert.service}`,
-            text: alert.message,
+            text: summary,
             fields: alert.details
               ? Object.entries(alert.details).map(([key, value]) => ({
                   title: key,
@@ -75,12 +101,13 @@ class PagerDutyNotificationProvider implements NotificationProvider {
 
   async send(alert: AlertPayload): Promise<void> {
     try {
+      const summary = formatAlertSummary(alert);
       const payload = {
         routing_key: this.integrationKey,
         event_action: alert.severity === 'critical' ? 'trigger' : 'resolve',
         dedup_key: `${alert.service}-${alert.timestamp}`,
         payload: {
-          summary: `${alert.service}: ${alert.message}`,
+          summary: `${alert.service}: ${summary}`,
           severity: alert.severity === 'critical' ? 'critical' : 'warning',
           source: 'SocialFlow Health Monitor',
           custom_details: alert.details || {},
