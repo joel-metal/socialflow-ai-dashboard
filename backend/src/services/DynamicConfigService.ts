@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { config } from '../config/config';
 
 export enum ConfigKey {
   RATE_LIMIT_MAX = 'RATE_LIMIT_MAX',
@@ -168,5 +169,7 @@ export class DynamicConfigService {
   }
 }
 
-// Export a singleton instance
-export const dynamicConfigService = new DynamicConfigService();
+// Export a singleton instance — interval read from env so no code change needed
+export const dynamicConfigService = new DynamicConfigService(
+  config.DYNAMIC_CONFIG_POLL_INTERVAL_MS,
+);

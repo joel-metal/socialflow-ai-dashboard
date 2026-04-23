@@ -116,6 +116,9 @@ const envSchema = z.object({
   // ── Webhooks ──────────────────────────────────────────────────────────────
   HMAC_TIMESTAMP_TOLERANCE_MS: z.coerce.number().default(300000),
 
+  // ── Dynamic Config ────────────────────────────────────────────────────────
+  DYNAMIC_CONFIG_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60000),
+
   // ── Rate Limiting ─────────────────────────────────────────────────────────
   RATE_LIMIT_STORE: z.enum(['redis', 'memory']).default('redis'),
 
