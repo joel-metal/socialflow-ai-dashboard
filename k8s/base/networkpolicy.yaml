@@ -18,19 +18,42 @@ spec:
         - protocol: TCP
           port: 3001
   egress:
-    # DNS
-    - ports:
+    # DNS - required for all name resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
         - protocol: UDP
           port: 53
-    # Redis
-    - ports:
+    # Redis (ElastiCache) - session and queue storage
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
         - protocol: TCP
           port: 6379
-    # PostgreSQL
-    - ports:
+    # PostgreSQL (RDS) - primary database
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
         - protocol: TCP
           port: 5432
-    # OTLP collector
-    - ports:
+    # OTLP collector - observability telemetry
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: opentelemetry-collector
+      ports:
         - protocol: TCP
           port: 4318
+    # External platform APIs - HTTPS only
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
