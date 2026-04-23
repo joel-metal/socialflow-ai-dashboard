@@ -23,6 +23,8 @@ npm run dev
 | `TWITTER_API_KEY`    | Twitter / X API key                                                  |
 | `TWITTER_API_SECRET` | Twitter / X API secret                                               |
 
+JWT secret rotation steps are documented in `backend/docs/jwt-secret-rotation.md`.
+
 ### Connection pool
 
 Pool parameters are injected automatically into `DATABASE_URL` at startup based on `NODE_ENV`. Override with env vars if needed.
