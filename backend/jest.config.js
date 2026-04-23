@@ -42,6 +42,7 @@ module.exports = {
         '^.*/utils/LockService$': '<rootDir>/src/__tests__/__mocks__/LockService.js',
       },
       setupFiles: ['<rootDir>/src/__tests__/unitSetup.ts'],
+      setupFilesAfterEnv: ['<rootDir>/src/__tests__/otelTeardown.ts'],
       transform: { '^.+\\.tsx?$': ['ts-jest', { diagnostics: false }] },
     },
     {
