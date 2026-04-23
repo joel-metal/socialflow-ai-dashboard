@@ -25,7 +25,10 @@ export interface LockOptions {
 
 export const LockService = {
   /**
-   * Acquire a lock and execute a function
+   * Acquire a lock and execute a function.
+   * A background interval extends the lock TTL every TTL/2 ms so the lock
+   * is held for the full duration of the operation even when it exceeds the
+   * initial TTL.
    */
   async withLock<T>(key: string, fn: () => Promise<T>, options: LockOptions = {}): Promise<T> {
     const duration = options.duration || 30000; // 30 seconds default
@@ -36,10 +39,24 @@ export const LockService = {
       lock = await redlock.lock(lockKey, duration);
       logger.info(`Lock acquired: ${lockKey}`);
 
+      // Extend the lock TTL every TTL/2 ms while the operation is running.
+      let currentLock = lock;
+      const extendInterval = setInterval(async () => {
+        try {
+          currentLock = await currentLock.extend(duration);
+          logger.debug(`Lock extended: ${lockKey}`);
+        } catch (extErr) {
+          logger.warn(`Failed to extend lock: ${lockKey}`, {
+            error: extErr instanceof Error ? extErr.message : String(extErr),
+          });
+        }
+      }, Math.floor(duration / 2));
+
       try {
         return await fn();
       } finally {
-        await lock.unlock().catch((err) => {
+        clearInterval(extendInterval);
+        await currentLock.unlock().catch((err) => {
           logger.error(`Failed to unlock ${lockKey}`, { error: err.message });
         });
         logger.info(`Lock released: ${lockKey}`);
