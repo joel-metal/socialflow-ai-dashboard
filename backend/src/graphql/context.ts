@@ -5,6 +5,13 @@ import { AuthBlacklistService } from '../services/AuthBlacklistService';
 export interface GraphQLContext {
   /** Authenticated user ID, or undefined for unauthenticated requests. */
   userId?: string;
+  /**
+   * Stable token key derived from the JWT payload (jti or sub:iat).
+   * Present whenever a valid (signature-verified) Bearer token was supplied,
+   * even if the token has been blacklisted. Used by requireAuth to enforce
+   * the blacklist check at the resolver layer.
+   */
+  tokenKey?: string;
 }
 
 const JWT_SECRET = () => process.env.JWT_SECRET ?? 'change-me-in-production';
@@ -32,5 +39,5 @@ export async function buildContext({ req }: { req: Request }): Promise<GraphQLCo
   const tokenKey = AuthBlacklistService.keyFromPayload(payload);
   if (await AuthBlacklistService.isBlacklisted(tokenKey)) return {};
 
-  return { userId: payload.sub as string };
+  return { userId: payload.sub as string, tokenKey };
 }

@@ -1,6 +1,7 @@
 import { GraphQLScalarType, Kind } from 'graphql';
 import { prisma } from '../lib/prisma';
 import { GraphQLContext } from './context';
+import { AuthBlacklistService } from '../services/AuthBlacklistService';
 
 const DateTimeScalar = new GraphQLScalarType({
   name: 'DateTime',
@@ -10,9 +11,18 @@ const DateTimeScalar = new GraphQLScalarType({
   parseLiteral: (ast) => (ast.kind === Kind.STRING ? new Date(ast.value) : null),
 });
 
-/** Throw a standard unauthenticated error when there is no user in context. */
-function requireAuth(ctx: GraphQLContext): string {
+/**
+ * Throw a standard unauthenticated error when there is no user in context,
+ * or when the token has been blacklisted (e.g. after logout).
+ */
+async function requireAuth(ctx: GraphQLContext): Promise<string> {
   if (!ctx.userId) throw new Error('UNAUTHENTICATED');
+
+  // Guard against valid-but-blacklisted tokens that somehow bypassed buildContext
+  if (ctx.tokenKey && await AuthBlacklistService.isBlacklisted(ctx.tokenKey)) {
+    throw new Error('UNAUTHENTICATED');
+  }
+
   return ctx.userId;
 }
 
@@ -22,13 +32,13 @@ export const resolvers = {
   Query: {
     /** Return the currently authenticated user. */
     me: async (_: unknown, __: unknown, ctx: GraphQLContext) => {
-      const userId = requireAuth(ctx);
+      const userId = await requireAuth(ctx);
       return prisma.user.findUnique({ where: { id: userId } });
     },
 
     /** Return a single user by ID. */
     user: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) => {
-      requireAuth(ctx);
+      await requireAuth(ctx);
       return prisma.user.findUnique({ where: { id } });
     },
 
@@ -38,7 +48,7 @@ export const resolvers = {
       { organizationId }: { organizationId: string },
       ctx: GraphQLContext,
     ) => {
-      requireAuth(ctx);
+      await requireAuth(ctx);
       return prisma.post.findMany({
         where: { organizationId },
         orderBy: { createdAt: 'desc' },
@@ -47,7 +57,7 @@ export const resolvers = {
 
     /** Return a single post by ID. */
     post: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) => {
-      requireAuth(ctx);
+      await requireAuth(ctx);
       return prisma.post.findUnique({ where: { id } });
     },
   },
@@ -59,7 +69,7 @@ export const resolvers = {
       { input }: { input: { organizationId: string; content: string; platform: string; scheduledAt?: Date } },
       ctx: GraphQLContext,
     ) => {
-      requireAuth(ctx);
+      await requireAuth(ctx);
       return prisma.post.create({ data: input });
     },
 
@@ -69,13 +79,13 @@ export const resolvers = {
       { id, input }: { id: string; input: { content?: string; platform?: string; scheduledAt?: Date } },
       ctx: GraphQLContext,
     ) => {
-      requireAuth(ctx);
+      await requireAuth(ctx);
       return prisma.post.update({ where: { id }, data: input });
     },
 
     /** Delete a post. Returns true on success. */
     deletePost: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) => {
-      requireAuth(ctx);
+      await requireAuth(ctx);
       await prisma.post.delete({ where: { id } });
       return true;
     },
