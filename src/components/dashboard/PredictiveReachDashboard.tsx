@@ -131,6 +131,18 @@ export const PredictiveReachDashboard: React.FC = () => {
 
   const totalEngagement = analytics.reduce((acc, curr) => acc + curr.likes + curr.comments, 0);
 
+  if (!loading && analytics.length === 0 && predictions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 space-y-4 text-center">
+        <span className="material-symbols-outlined text-6xl text-gray-600">bar_chart</span>
+        <h3 className="text-xl font-bold text-white">No post history yet</h3>
+        <p className="text-gray-subtext text-sm max-w-xs">
+          Once you start publishing posts, your reach predictions and analytics will appear here.
+        </p>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-32 space-y-4">

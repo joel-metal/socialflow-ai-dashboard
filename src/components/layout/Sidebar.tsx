@@ -1,15 +1,18 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 
 const menuItems = [
-  { icon: 'dashboard', label: 'Dashboard', active: true },
-  { icon: 'analytics', label: 'Analytics', active: false },
-  { icon: 'schedule', label: 'Scheduler', active: false },
-  { icon: 'psychology', label: 'AI Predictor', active: false },
-  { icon: 'settings', label: 'Settings', active: false },
+  { icon: 'dashboard', label: 'Dashboard', path: '/' },
+  { icon: 'analytics', label: 'Analytics', path: '/analytics' },
+  { icon: 'schedule', label: 'Scheduler', path: '/scheduler' },
+  { icon: 'psychology', label: 'AI Predictor', path: '/predictor' },
+  { icon: 'settings', label: 'Settings', path: '/settings' },
 ];
 
 export const Sidebar: React.FC = () => {
+  const location = useLocation();
+
   return (
     <aside className="glass border-r h-full flex flex-col p-6 z-50">
       <div className="flex items-center gap-3 mb-12 px-2">
@@ -22,12 +25,14 @@ export const Sidebar: React.FC = () => {
       </div>
 
       <nav className="flex-1 space-y-2">
-        {menuItems.map((item, index) => (
+        {menuItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
           <motion.div
             key={item.label}
             whileHover={{ x: 4 }}
             className={`flex items-center gap-4 px-4 py-3 rounded-xl cursor-pointer transition-all ${
-              item.active 
+              isActive
               ? 'bg-primary-blue/20 text-primary-blue border border-primary-blue/30' 
               : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
@@ -36,14 +41,15 @@ export const Sidebar: React.FC = () => {
             <span className="text-sm font-semibold tracking-wide">
               {item.label}
             </span>
-            {item.active && (
+            {isActive && (
               <motion.div 
                 layoutId="active-pill"
                 className="ml-auto w-1.5 h-1.5 rounded-full bg-primary-blue shadow-[0_0_10px_rgba(59,130,246,1)]" 
               />
             )}
           </motion.div>
-        ))}
+          );
+        })}
       </nav>
 
       <div className="mt-auto border-t border-dark-border pt-6 px-2">
