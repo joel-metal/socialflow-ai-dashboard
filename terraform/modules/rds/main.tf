@@ -39,6 +39,6 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [aws_security_group.rds.id]
   skip_final_snapshot    = var.env == "dev"
   deletion_protection    = var.env == "prod"
-  backup_retention_period = var.env == "prod" ? 7 : 1
+  backup_retention_period = var.backup_retention_days
   tags                   = { Env = var.env }
 }
