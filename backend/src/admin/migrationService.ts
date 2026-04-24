@@ -21,6 +21,7 @@ interface MigrationDefinition {
   name: string;
   description: string;
   run: (context: MigrationContext) => Promise<Record<string, unknown>>;
+  rollback?: (context: MigrationContext) => Promise<void>;
 }
 
 export interface MigrationStatus {
@@ -85,6 +86,12 @@ const migrations: MigrationDefinition[] = [
       });
 
       return { syncedQueues };
+    },
+    rollback: async ({ redis, logger }) => {
+      await redis.del(KNOWN_QUEUES_SET_KEY);
+      logger.info('Rolled back migration: removed known-queues set', {
+        migration: '20260324_sync_configured_queues',
+      });
     },
   },
 ];
@@ -362,6 +369,42 @@ export const runMigrations = async (
         await releaseMigrationLock(redis, logger);
       }
     }
+  } finally {
+    redis.disconnect();
+  }
+};
+
+export const rollbackMigration = async (
+  migrationName: string,
+  logger: Logger,
+): Promise<{ success: boolean; error?: string }> => {
+  const redis = new Redis(getRedisConnection());
+
+  try {
+    const migration = migrations.find((m) => m.name === migrationName);
+    if (!migration) {
+      return { success: false, error: 'Migration not found' };
+    }
+
+    if (!migration.rollback) {
+      return { success: false, error: 'Migration does not support rollback' };
+    }
+
+    const applied = await redis.sismember(ADMIN_MIGRATIONS_SET_KEY, migrationName);
+    if (!applied) {
+      return { success: false, error: 'Migration not applied' };
+    }
+
+    await migration.rollback({ redis, logger });
+    await redis.srem(ADMIN_MIGRATIONS_SET_KEY, migrationName);
+    await redis.hdel(ADMIN_MIGRATIONS_METADATA_KEY, migrationName);
+
+    logger.info('Migration rolled back successfully', { migration: migrationName });
+    return { success: true };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error('Rollback failed', { migration: migrationName, error: errorMsg });
+    return { success: false, error: errorMsg };
   } finally {
     redis.disconnect();
   }

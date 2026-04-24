@@ -113,6 +113,14 @@ jobs:
           cache: "npm"
           cache-dependency-path: package-lock.json
 
+      - name: Cache backend dependencies
+        uses: actions/cache@v4
+        with:
+          path: backend/node_modules
+          key: ${{ runner.os }}-backend-${{ hashFiles('backend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-backend-
+
       - name: Install dependencies
         run: npm ci
 
