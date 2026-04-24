@@ -59,8 +59,9 @@ resource "aws_ecs_task_definition" "app" {
   task_role_arn            = aws_iam_role.task.arn
 
   container_definitions = jsonencode([{
-    name  = "app"
-    image = var.image_uri
+    name        = "app"
+    image       = var.image_uri
+    stopTimeout = 60
     portMappings = [{ containerPort = var.container_port, protocol = "tcp" }]
     environment = [
       { name = "NODE_ENV",    value = var.env },
