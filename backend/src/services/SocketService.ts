@@ -5,6 +5,7 @@ import Redis from 'ioredis';
 import jwt from 'jsonwebtoken';
 import { createLogger } from '../lib/logger';
 import { config } from '../config/config';
+import { getRedisConnection } from '../config/runtime';
 
 const logger = createLogger('SocketService');
 
@@ -41,7 +42,7 @@ export class SocketService {
     });
 
     // Configure Redis Adapter
-    const pubClient = new Redis({ host: config.REDIS_HOST, port: config.REDIS_PORT });
+    const pubClient = new Redis(getRedisConnection());
     const subClient = pubClient.duplicate();
     this.io.adapter(createAdapter(pubClient, subClient));
 

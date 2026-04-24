@@ -1,15 +1,11 @@
 import Redlock from 'redlock';
 import Redis from 'ioredis';
 import { createLogger } from '../lib/logger';
+import { getRedisConnection } from '../config/runtime';
 
 const logger = createLogger('lock-service');
 
-const redisClient = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD,
-  db: parseInt(process.env.REDIS_DB || '0'),
-});
+const redisClient = new Redis(getRedisConnection());
 
 const redlock = new Redlock([redisClient], {
   driftFactor: 0.01,

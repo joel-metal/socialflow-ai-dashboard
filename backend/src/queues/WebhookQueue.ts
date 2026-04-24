@@ -1,13 +1,11 @@
 import { Queue, Worker, Job } from 'bullmq';
 import { createLogger } from '../lib/logger';
 import { attemptDelivery } from '../services/WebhookDispatcher';
+import { getRedisConnection } from '../config/runtime';
 
 const logger = createLogger('WebhookQueue');
 
-const connection = {
-  host: process.env.REDIS_HOST ?? 'localhost',
-  port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
-};
+const connection = getRedisConnection();
 
 export interface WebhookJobData {
   deliveryId: string;

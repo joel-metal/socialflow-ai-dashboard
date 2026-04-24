@@ -67,7 +67,8 @@ resource "aws_ecs_task_definition" "app" {
       { name = "NODE_ENV",    value = var.env },
       { name = "PORT",        value = tostring(var.container_port) },
       { name = "S3_BUCKET",   value = var.s3_bucket },
-      { name = "AWS_REGION",  value = var.aws_region }
+      { name = "AWS_REGION",  value = var.aws_region },
+      { name = "REDIS_TLS",   value = "true" }
     ]
     secrets = [
       { name = "DATABASE_URL", valueFrom = aws_ssm_parameter.database_url.arn },
