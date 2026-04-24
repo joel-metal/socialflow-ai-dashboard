@@ -32,6 +32,7 @@ module.exports = {
         '**/__tests__/*.test.ts',
         '**/tests/**/*.test.ts',
         '**/services/__tests__/**/*.test.ts',
+        '!**/services/__tests__/CircuitBreakerService.integration.test.ts',
       ],
       moduleNameMapper: {
         ...sharedModuleNameMapper,
@@ -74,6 +75,19 @@ module.exports = {
       moduleNameMapper: { '^uuid$': sharedModuleNameMapper['^uuid$'] },
       transform: { '^.+\\.tsx?$': ['ts-jest', { diagnostics: false }] },
       testTimeout: 10000,
+    },
+    {
+      displayName: 'circuit-breaker',
+      preset: 'ts-jest',
+      testEnvironment: 'node',
+      roots: ['<rootDir>/src'],
+      testMatch: ['**/services/__tests__/CircuitBreakerService.integration.test.ts'],
+      moduleNameMapper: {
+        '^opossum$': require.resolve('opossum'),
+        '^.*/lib/logger$': '<rootDir>/src/__tests__/__mocks__/logger.js',
+      },
+      transform: { '^.+\\.tsx?$': ['ts-jest', { diagnostics: false }] },
+      testTimeout: 15000,
     },
   ],
 };
