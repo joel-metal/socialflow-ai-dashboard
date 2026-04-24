@@ -32,11 +32,25 @@ export const options = {
       env: { SCENARIO: 'load' },
       startTime: '35s', // starts after smoke finishes
     },
+    ai_concurrency: {
+      executor: 'ramping-vus',
+      startVUs: 1,
+      stages: [
+        { duration: '60s', target: 50 },
+        { duration: '30s', target: 50 },
+        { duration: '10s', target: 0 },
+      ],
+      tags: { scenario: 'ai_concurrency' },
+      env: { SCENARIO: 'ai_concurrency' },
+      startTime: '35s',
+      exec: 'aiConcurrencyScenario',
+    },
   },
   thresholds: {
     http_req_failed: ['rate<0.01'],           // <1% errors
     http_req_duration: ['p(95)<2000'],        // 95th percentile under 2s
     'http_req_duration{endpoint:ai}': ['p(95)<5000'], // AI endpoints get 5s budget
+    'http_req_duration{scenario:ai_concurrency}': ['p(95)<5000'],
   },
 };
 
@@ -84,5 +98,12 @@ export default function () {
   sleep(1);
 
   testPostPublishing();
+  sleep(0.5);
+}
+
+// ── AI concurrency scenario (ramp 1→50 VUs over 60s, p95 < 5s) ───────────────
+
+export function aiConcurrencyScenario() {
+  testAIGeneration();
   sleep(0.5);
 }
