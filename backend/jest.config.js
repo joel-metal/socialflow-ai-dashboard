@@ -52,6 +52,7 @@ module.exports = {
       roots: ['<rootDir>/src'],
       testMatch: ['**/__tests__/integration/*.e2e.test.ts'],
       moduleNameMapper: sharedModuleNameMapper,
+      setupFilesAfterEnv: ['<rootDir>/src/__tests__/integration/setup.ts'],
       transform: { '^.+\\.tsx?$': ['ts-jest', { diagnostics: false }] },
       testTimeout: 15000,
     },
