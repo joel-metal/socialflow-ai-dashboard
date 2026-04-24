@@ -20,6 +20,7 @@ export const ListingVisibilityToggle: React.FC<ListingVisibilityToggleProps> = (
 
   const handleToggle = async () => {
     setIsLoading(true);
+    const previousState = isActive;
     const newState = !isActive;
     try {
       // Assuming authorization token is passed via headers elsewhere or credentials
@@ -43,6 +44,7 @@ export const ListingVisibilityToggle: React.FC<ListingVisibilityToggleProps> = (
         onToggleSuccess(newState);
       }
     } catch (error: any) {
+      setIsActive(previousState);
       if (onToggleError) {
         onToggleError(error.message);
       } else {
