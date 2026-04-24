@@ -1,15 +1,11 @@
 import { Queue, Worker, Job } from 'bullmq';
 import { createLogger } from '../lib/logger';
 import { WebhookEventType } from '../schemas/webhooks';
+import { getRedisConnection } from '../config/runtime';
 
 const logger = createLogger('twitter-webhook-queue');
 
-const connection = {
-  host: process.env.REDIS_HOST ?? 'localhost',
-  port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
-  password: process.env.REDIS_PASSWORD,
-  maxRetriesPerRequest: null,
-};
+const connection = getRedisConnection();
 
 export interface TwitterWebhookJobData {
   eventType: WebhookEventType;

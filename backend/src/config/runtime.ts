@@ -14,6 +14,8 @@ export const getRedisConnection = (): RedisOptions => ({
   password: config.REDIS_PASSWORD,
   db: config.REDIS_DB,
   maxRetriesPerRequest: null,
+  // Enable TLS when REDIS_TLS=true (required for ElastiCache with transit encryption)
+  tls: config.REDIS_TLS ? {} : undefined,
 });
 
 export const getConfiguredQueueNames = (): string[] =>
