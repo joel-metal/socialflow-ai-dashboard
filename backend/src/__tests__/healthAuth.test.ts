@@ -3,8 +3,8 @@ process.env.JWT_SECRET = 'test-secret';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import app from '../app';
-import { RoleStore } from '../models/Role';
 import { AuditLogStore } from '../models/AuditLog';
+import { createTestUser, generateTestToken } from './fixtures';
 
 jest.mock('../lib/integrationStatus', () => ({
   getIntegrationSnapshot: jest.fn(() => [
@@ -46,20 +46,21 @@ jest.mock('../services/serviceFactory', () => ({
   })),
 }));
 
-const SECRET = 'test-secret';
+const admin = createTestUser('admin', 'admin-health-1');
+const editor = createTestUser('editor', 'editor-health-1');
+const viewer = createTestUser('viewer', 'viewer-health-1');
+
+const adminId = admin.userId;
+const editorId = editor.userId;
+const viewerId = viewer.userId;
 
 function token(userId: string) {
-  return jwt.sign({ sub: userId }, SECRET, { expiresIn: '15m' });
+  return generateTestToken(userId);
 }
 
-const adminId = 'admin-health-1';
-const editorId = 'editor-health-1';
-const viewerId = 'viewer-health-1';
-
 beforeAll(() => {
-  RoleStore.assign(adminId, 'admin');
-  RoleStore.assign(editorId, 'editor');
-  RoleStore.assign(viewerId, 'viewer');
+  // Users are already registered in RoleStore by createTestUser above.
+  // This hook is kept for any additional setup that may be added later.
 });
 
 describe('Health Routes — Authorization Boundaries', () => {
