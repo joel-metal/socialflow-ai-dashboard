@@ -156,7 +156,10 @@ jest.mock('../../services/DynamicConfigService', () => ({
 }));
 
 // ── Teardown: reset all in-memory stores after each test ─────────────────────
+import { UserStore } from '../../../models/User';
+
 afterEach(() => {
+  UserStore.clear();
   redisStore.clear();
   orgStore.clear();
   memberStore.clear();

@@ -1,11 +1,5 @@
-import './setup';
 import request from 'supertest';
 import app from '../../app';
-import { UserStore } from '../../models/User';
-
-afterEach(() => {
-  UserStore.clear();
-});
 
 // ── Register ──────────────────────────────────────────────────────────────────
 describe('POST /api/v1/auth/register', () => {

@@ -1,12 +1,6 @@
-import './setup';
 import request from 'supertest';
 import { randomUUID } from 'crypto';
 import app from '../../app';
-import { UserStore } from '../../models/User';
-
-afterEach(() => {
-  (UserStore as any).users = new Map();
-});
 
 async function getToken(email: string): Promise<string> {
   const res = await request(app)
