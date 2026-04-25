@@ -34,7 +34,15 @@ const buckets = [10, 25, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 50
 
 export const httpRequestDuration = new Histogram({
   name: 'http_request_duration_ms',
-  help: 'HTTP request duration in milliseconds',
+  help: 'HTTP request duration in milliseconds (2xx/3xx only)',
+  labelNames: ['method', 'route', 'status_code', 'category'] as const,
+  buckets,
+  registers: [register],
+});
+
+export const errorRequestDuration = new Histogram({
+  name: 'http_error_request_duration_ms',
+  help: 'HTTP request duration in milliseconds for 5xx error responses',
   labelNames: ['method', 'route', 'status_code', 'category'] as const,
   buckets,
   registers: [register],
