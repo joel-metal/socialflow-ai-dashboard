@@ -31,6 +31,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
+# Rebuild sharp for current platform (required for ARM compatibility)
+RUN npm rebuild sharp
+
 # Copy compiled output from builder
 COPY --from=builder /app/dist ./dist
 
