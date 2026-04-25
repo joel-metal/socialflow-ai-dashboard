@@ -13,7 +13,7 @@ export const ReachScoreWidget: React.FC<ReachScoreWidgetProps> = ({ postData, on
 
   useEffect(() => {
     analyzePrediction();
-  }, [postData.content, postData.platform, postData.scheduledTime]);
+  }, [postData.content, postData.platform, postData.scheduledTime, postData]);
 
   const analyzePrediction = async () => {
     if (!postData.content || postData.content.length < 3) {

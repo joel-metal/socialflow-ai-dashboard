@@ -21,6 +21,8 @@ interface State {
   // deliveries keyed by webhook id
   deliveries: Record<string, WebhookDelivery[]>;
   expandedId: string | null;
+  // track in-flight replay requests: key is "webhookId:deliveryId"
+  replayingDeliveries: Set<string>;
 }
 
 type Action =
@@ -30,7 +32,9 @@ type Action =
   | { type: 'ADD'; webhook: WebhookSubscription }
   | { type: 'REMOVE'; id: string }
   | { type: 'DELIVERIES_OK'; id: string; deliveries: WebhookDelivery[] }
-  | { type: 'TOGGLE_EXPAND'; id: string };
+  | { type: 'TOGGLE_EXPAND'; id: string }
+  | { type: 'REPLAY_START'; webhookId: string; deliveryId: string }
+  | { type: 'REPLAY_END'; webhookId: string; deliveryId: string };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -43,6 +47,16 @@ function reducer(state: State, action: Action): State {
       return { ...state, deliveries: { ...state.deliveries, [action.id]: action.deliveries } };
     case 'TOGGLE_EXPAND':
       return { ...state, expandedId: state.expandedId === action.id ? null : action.id };
+    case 'REPLAY_START': {
+      const key = `${action.webhookId}:${action.deliveryId}`;
+      return { ...state, replayingDeliveries: new Set([...state.replayingDeliveries, key]) };
+    }
+    case 'REPLAY_END': {
+      const key = `${action.webhookId}:${action.deliveryId}`;
+      const next = new Set(state.replayingDeliveries);
+      next.delete(key);
+      return { ...state, replayingDeliveries: next };
+    }
     default: return state;
   }
 }
@@ -55,10 +69,11 @@ const DELIVERY_COLORS: Record<string, string> = {
   pending: 'bg-gray-100 text-gray-600',
 };
 
-function DeliveryRow({ d, webhookId, onReplay }: {
+function DeliveryRow({ d, webhookId, onReplay, isReplaying }: {
   d: WebhookDelivery;
   webhookId: string;
   onReplay: (webhookId: string, deliveryId: string) => void;
+  isReplaying: boolean;
 }) {
   return (
     <tr className="text-xs border-t">
@@ -75,17 +90,17 @@ function DeliveryRow({ d, webhookId, onReplay }: {
         <button
           onClick={() => onReplay(webhookId, d.id!)}
           className="text-blue-600 hover:underline disabled:opacity-40"
-          disabled={!d.id}
+          disabled={!d.id || isReplaying}
           aria-label="Replay delivery"
         >
-          Replay
+          {isReplaying ? 'Replaying…' : 'Replay'}
         </button>
       </td>
     </tr>
   );
 }
 
-function WebhookRow({ webhook, deliveries, expanded, onExpand, onDelete, onTest, onReplay }: {
+function WebhookRow({ webhook, deliveries, expanded, onExpand, onDelete, onTest, onReplay, replayingDeliveries }: {
   webhook: WebhookSubscription;
   deliveries: WebhookDelivery[];
   expanded: boolean;
@@ -93,6 +108,7 @@ function WebhookRow({ webhook, deliveries, expanded, onExpand, onDelete, onTest,
   onDelete: (id: string) => void;
   onTest: (id: string) => void;
   onReplay: (webhookId: string, deliveryId: string) => void;
+  replayingDeliveries: Set<string>;
 }) {
   const last = deliveries[0];
 
@@ -156,7 +172,13 @@ function WebhookRow({ webhook, deliveries, expanded, onExpand, onDelete, onTest,
               </thead>
               <tbody>
                 {deliveries.map(d => (
-                  <DeliveryRow key={d.id} d={d} webhookId={webhook.id!} onReplay={onReplay} />
+                  <DeliveryRow 
+                    key={d.id} 
+                    d={d} 
+                    webhookId={webhook.id!} 
+                    onReplay={onReplay}
+                    isReplaying={replayingDeliveries.has(`${webhook.id}:${d.id}`)}
+                  />
                 ))}
               </tbody>
             </table>
@@ -297,7 +319,7 @@ function TestModal({ webhookId, onClose }: { webhookId: string; onClose: () => v
 
 export default function WebhookManager() {
   const [state, dispatch] = useReducer(reducer, {
-    webhooks: [], loading: false, error: null, deliveries: {}, expandedId: null,
+    webhooks: [], loading: false, error: null, deliveries: {}, expandedId: null, replayingDeliveries: new Set(),
   });
   const [testingId, setTestingId] = useState<string | null>(null);
 
@@ -336,6 +358,7 @@ export default function WebhookManager() {
   }
 
   async function handleReplay(webhookId: string, deliveryId: string) {
+    dispatch({ type: 'REPLAY_START', webhookId, deliveryId });
     try {
       await WebhooksService.replayDelivery(webhookId, deliveryId);
       // Refresh deliveries for this webhook
@@ -343,6 +366,8 @@ export default function WebhookManager() {
       dispatch({ type: 'DELIVERIES_OK', id: webhookId, deliveries });
     } catch (e: any) {
       alert(e?.message ?? 'Replay failed.');
+    } finally {
+      dispatch({ type: 'REPLAY_END', webhookId, deliveryId });
     }
   }
 
@@ -375,6 +400,7 @@ export default function WebhookManager() {
             onDelete={handleDelete}
             onTest={id => setTestingId(id)}
             onReplay={handleReplay}
+            replayingDeliveries={state.replayingDeliveries}
           />
         ))}
       </div>

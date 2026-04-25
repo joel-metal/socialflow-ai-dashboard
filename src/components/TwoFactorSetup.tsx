@@ -4,9 +4,10 @@ import QRCodeDisplay from './QRCodeDisplay';
 
 type SetupStep =
   | 'IDLE'
+  | 'GENERATING_CODES'
+  | 'SHOWING_CODES'
   | 'QR_DISPLAY'
   | 'CONFIRMING'
-  | 'SHOWING_CODES'
   | 'DISABLING'
   | 'DONE';
 
@@ -37,6 +38,25 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({
 
   const handleStartSetup = () => {
     setError(null);
+    setLoading(true);
+    try {
+      const codes = twoFactorService.generateRecoveryCodes();
+      setRecoveryCodes(codes.map(c => c.code));
+      setCodesAcknowledged(false);
+      setStep('SHOWING_CODES');
+    } catch (e) {
+      setError('Failed to generate recovery codes.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCodesAcknowledged = () => {
+    if (!codesAcknowledged) {
+      setError('Please confirm you have saved your recovery codes.');
+      return;
+    }
+    setError(null);
     const { secret: s, uri: u } = twoFactorService.generateSecret('SocialFlow');
     setSecret(s);
     setUri(u);
@@ -58,11 +78,9 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({
     setLoading(true);
     try {
       await twoFactorService.enable(secret);
-      const codes = twoFactorService.generateRecoveryCodes();
-      await twoFactorService.storeRecoveryCodes(codes);
-      setRecoveryCodes(codes.map(c => c.code));
-      setCodesAcknowledged(false);
-      setStep('SHOWING_CODES');
+      await twoFactorService.storeRecoveryCodes(recoveryCodes.map(code => ({ code })));
+      setStep('DONE');
+      onSetupComplete();
     } catch (e) {
       setError(e instanceof TwoFactorUnavailableError ? e.message : 'Failed to enable 2FA.');
     } finally {
@@ -214,11 +232,11 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({
           </label>
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <button
-            onClick={handleFinishSetup}
-            disabled={!codesAcknowledged}
+            onClick={handleCodesAcknowledged}
+            disabled={!codesAcknowledged || loading}
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
           >
-            Done
+            {loading ? 'Generating QR Code…' : 'Continue to QR Code'}
           </button>
         </div>
       )}
