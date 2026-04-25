@@ -5,6 +5,7 @@ import {
   HistoricalPerformance,
   TrendAnalysis,
   MLModelMetrics,
+  PlatformMedians,
 } from '../types/predictive';
 
 /**
@@ -484,7 +485,8 @@ class PredictiveService {
   }
 
   /**
-   * Initialize default historical data
+   * Initialize default historical data (hardcoded fallback values).
+   * Call seedFromMedians() to replace these with platform-wide medians.
    */
   private initializeDefaultHistoricalData(): void {
     const platforms = ['instagram', 'tiktok', 'facebook', 'youtube', 'linkedin', 'x'];
@@ -504,6 +506,19 @@ class PredictiveService {
         },
       });
     });
+  }
+
+  /**
+   * Seed historical defaults from pre-computed platform medians.
+   * Only fields present in the medians map are overwritten; the rest keep their current values.
+   */
+  public seedFromMedians(medians: PlatformMedians): void {
+    for (const [platform, values] of Object.entries(medians)) {
+      const existing = this.historicalData.get(platform);
+      if (!existing) continue;
+      if (values.avgReach !== undefined) existing.avgReach = values.avgReach;
+      if (values.avgEngagement !== undefined) existing.avgEngagement = values.avgEngagement;
+    }
   }
 
   /**

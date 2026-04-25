@@ -51,3 +51,11 @@ export interface MLModelMetrics {
   sampleSize: number;
   version: string;
 }
+
+/** Per-platform median values computed from aggregated AnalyticsEntry rows. */
+export interface PlatformMedianValues {
+  avgReach?: number;
+  avgEngagement?: number;
+}
+
+export type PlatformMedians = Record<string, PlatformMedianValues>;
