@@ -42,6 +42,8 @@ module.exports = {
         '^.*/lib/logger$': '<rootDir>/src/__tests__/__mocks__/logger.js',
         '^.*/CircuitBreakerService$': '<rootDir>/src/__tests__/__mocks__/CircuitBreakerService.js',
         '^.*/utils/LockService$': '<rootDir>/src/__tests__/__mocks__/LockService.js',
+        '^multer$': '<rootDir>/src/__tests__/__mocks__/multer.js',
+        '^sharp$': '<rootDir>/src/__tests__/__mocks__/sharp.js',
       },
       setupFiles: ['<rootDir>/src/__tests__/unitSetup.ts'],
       setupFilesAfterEnv: ['<rootDir>/src/__tests__/otelTeardown.ts'],

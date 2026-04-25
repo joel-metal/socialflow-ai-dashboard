@@ -42,4 +42,13 @@ router.get(
   },
 );
 
+router.get(
+  '/metrics',
+  generalLimiter,
+  authenticate,
+  (_req: Request, res: Response): void => {
+    res.json({ success: true, data: predictiveService.getModelMetrics() });
+  },
+);
+
 export default router;
