@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { httpRequestDuration, sliBreachTotal, SLI_BUDGETS, resolveCategory } from '../lib/metrics';
+import { httpRequestDuration, errorRequestDuration, sliBreachTotal, SLI_BUDGETS, resolveCategory } from '../lib/metrics';
 import { createLogger } from '../lib/logger';
 
 const logger = createLogger('sli');
@@ -17,6 +17,11 @@ export function sliMiddleware(req: Request, res: Response, next: NextFunction): 
       status_code: String(res.statusCode),
       category,
     };
+
+    if (res.statusCode >= 500) {
+      errorRequestDuration.observe(labels, durationMs);
+      return;
+    }
 
     httpRequestDuration.observe(labels, durationMs);
 

@@ -32,6 +32,9 @@ coverage
 # Test results
 test-results
 
+# Test snapshots
+**/__snapshots__/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
