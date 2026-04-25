@@ -8,19 +8,36 @@ import crypto from 'crypto';
 const mockCreate = jest.fn();
 const mockUpdate = jest.fn();
 const mockFindMany = jest.fn();
+const mockFindUnique = jest.fn();
 
 jest.mock('../lib/prisma', () => ({
   prisma: {
     webhookSubscription: { findMany: mockFindMany },
-    webhookDelivery: { create: mockCreate, update: mockUpdate, findMany: jest.fn() },
+    webhookDelivery: {
+      create: mockCreate,
+      update: mockUpdate,
+      findMany: jest.fn(),
+      findUnique: mockFindUnique,
+    },
   },
 }));
+
+// ── Mock BullMQ so WebhookQueue can be imported without Redis ─────────────────
+jest.mock('bullmq', () => ({
+  Queue: jest.fn().mockImplementation(() => ({})),
+  Worker: jest.fn().mockImplementation((_name: string, processor: Function) => {
+    // Expose the processor so tests can invoke it directly
+    return { processor, on: jest.fn() };
+  }),
+}));
+
+jest.mock('../config/runtime', () => ({ getRedisConnection: jest.fn(() => ({})) }));
 
 // ── Mock fetch globally ───────────────────────────────────────────────────────
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
-import { attemptDelivery, dispatchEvent } from '../services/WebhookDispatcher';
+import { attemptDelivery, dispatchEvent, retryPendingDeliveries } from '../services/WebhookDispatcher';
 
 beforeEach(() => jest.clearAllMocks());
 
@@ -130,5 +147,101 @@ describe('attemptDelivery', () => {
 
     const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect((options.headers as Record<string, string>)['X-SocialFlow-Delivery']).toBe('del-xyz');
+  });
+});
+
+// ── retryPendingDeliveries — secret rotation ──────────────────────────────────
+describe('retryPendingDeliveries', () => {
+  const payload = '{"event":"post.published"}';
+
+  it('uses the current subscription secret, not a stale one', async () => {
+    const rotatedSecret = 'rotated-secret';
+    const expectedSig =
+      'sha256=' + crypto.createHmac('sha256', rotatedSecret).update(payload).digest('hex');
+
+    // Simulate a delivery whose subscription secret has been rotated
+    (jest.requireMock('../lib/prisma').prisma.webhookDelivery.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: 'del-retry',
+        payload,
+        attempts: 1,
+        subscription: { url: 'https://example.com/hook', secret: rotatedSecret },
+      },
+    ]);
+    mockFetch.mockResolvedValue({ ok: true, status: 200, text: async () => 'ok' });
+    mockUpdate.mockResolvedValue({});
+
+    await retryPendingDeliveries();
+
+    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect((options.headers as Record<string, string>)['X-SocialFlow-Signature']).toBe(expectedSig);
+  });
+
+  it('does NOT use the old secret after rotation', async () => {
+    const oldSecret = 'old-secret';
+    const rotatedSecret = 'rotated-secret';
+    const staleSignature =
+      'sha256=' + crypto.createHmac('sha256', oldSecret).update(payload).digest('hex');
+
+    (jest.requireMock('../lib/prisma').prisma.webhookDelivery.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: 'del-retry-2',
+        payload,
+        attempts: 1,
+        subscription: { url: 'https://example.com/hook', secret: rotatedSecret },
+      },
+    ]);
+    mockFetch.mockResolvedValue({ ok: true, status: 200, text: async () => 'ok' });
+    mockUpdate.mockResolvedValue({});
+
+    await retryPendingDeliveries();
+
+    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect((options.headers as Record<string, string>)['X-SocialFlow-Signature']).not.toBe(staleSignature);
+  });
+});
+
+// ── startWebhookWorker — secret rotation ─────────────────────────────────────
+describe('startWebhookWorker', () => {
+  const payload = '{"event":"post.published"}';
+
+  it('fetches the current secret from DB and uses it to sign the delivery', async () => {
+    const rotatedSecret = 'rotated-secret-worker';
+    const expectedSig =
+      'sha256=' + crypto.createHmac('sha256', rotatedSecret).update(payload).digest('hex');
+
+    mockFindUnique.mockResolvedValue({
+      subscription: { secret: rotatedSecret },
+    });
+    mockFetch.mockResolvedValue({ ok: true, status: 200, text: async () => 'ok' });
+    mockUpdate.mockResolvedValue({});
+
+    // Import after mocks are set up
+    const { startWebhookWorker } = await import('../queues/WebhookQueue');
+    const worker = startWebhookWorker() as unknown as { processor: Function };
+
+    await worker.processor({
+      data: { deliveryId: 'del-w1', url: 'https://example.com/hook', payload, attempt: 2 },
+    });
+
+    expect(mockFindUnique).toHaveBeenCalledWith({
+      where: { id: 'del-w1' },
+      select: { subscription: { select: { secret: true } } },
+    });
+    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect((options.headers as Record<string, string>)['X-SocialFlow-Signature']).toBe(expectedSig);
+  });
+
+  it('skips delivery when the delivery record no longer exists', async () => {
+    mockFindUnique.mockResolvedValue(null);
+
+    const { startWebhookWorker } = await import('../queues/WebhookQueue');
+    const worker = startWebhookWorker() as unknown as { processor: Function };
+
+    await worker.processor({
+      data: { deliveryId: 'del-gone', url: 'https://example.com/hook', payload, attempt: 1 },
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
