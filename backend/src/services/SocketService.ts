@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import { createLogger } from '../lib/logger';
 import { config } from '../config/config';
 import { getRedisConnection } from '../config/runtime';
+import { eventBus, JobProgressEvent } from '../lib/eventBus';
 
 const logger = createLogger('SocketService');
 
@@ -16,6 +17,7 @@ interface AuthenticatedSocket extends Socket {
 export class SocketService {
   private static instance: SocketService;
   private io?: Server;
+  private jobProgressListener?: (event: JobProgressEvent) => void;
 
   private constructor() {}
 
@@ -46,6 +48,13 @@ export class SocketService {
     const subClient = pubClient.duplicate();
     this.io.adapter(createAdapter(pubClient, subClient));
 
+    // Listen to job progress events and emit to user rooms
+    this.jobProgressListener = (event: JobProgressEvent) => {
+      const room = `user:${event.userId}`;
+      this.io?.to(room).emit('job_progress', event);
+    };
+    eventBus.on('job:*', this.jobProgressListener);
+
     // Authenticated connection middleware
     this.io.use((socket: AuthenticatedSocket, next) => {
       // First try to grab token from auth payload, fallback to Authorization header
@@ -66,6 +75,14 @@ export class SocketService {
 
     this.io.on('connection', (socket: AuthenticatedSocket) => {
       logger.info(`Authorized connection from ${socket.id}`);
+
+      // Join user-specific room for job progress
+      const userId = socket.user?.sub;
+      if (userId) {
+        const userRoom = `user:${userId}`;
+        socket.join(userRoom);
+        logger.info(`Client ${socket.id} joined room ${userRoom}`);
+      }
 
       // Auto-join specific namespace or org-based rooms based on client query
       const orgId = socket.handshake.query.orgId as string;
