@@ -36,6 +36,15 @@ export async function indexPost(doc: PostDocument): Promise<void> {
   }
 }
 
+/** Remove a post from the search index. */
+export async function deletePost(postId: string): Promise<void> {
+  try {
+    await getMeiliClient().index(POSTS_INDEX).deleteDocument(postId);
+  } catch (err) {
+    logger.error('Failed to delete post from index', { id: postId, error: (err as Error).message });
+  }
+}
+
 /** Full-text search across posts with optional filters. */
 export async function searchPosts(
   query: string,
