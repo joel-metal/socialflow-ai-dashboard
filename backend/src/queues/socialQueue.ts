@@ -1,5 +1,6 @@
 import { queueManager } from './queueManager';
 import { enqueue, enqueueAt } from '../utils/queue';
+import { captureTraceContext, SerializedTraceContext } from '../lib/traceContext';
 
 export const SOCIAL_QUEUE_NAME = 'social-posting';
 
@@ -18,6 +19,8 @@ export interface SocialJobData {
     scheduledAt?: string;
     options?: Record<string, unknown>;
   };
+  /** W3C trace context captured at enqueue time; used to link job spans to the originating HTTP span. */
+  traceContext?: SerializedTraceContext;
 }
 
 // Background queue: 3 attempts, longer backoff — rate-limit friendly
@@ -29,7 +32,7 @@ export const socialQueue = queueManager.createQueue(SOCIAL_QUEUE_NAME, {
 });
 
 export const enqueueSocialJob = (data: SocialJobData, priority = 2) =>
-  enqueue<SocialJobData>(SOCIAL_QUEUE_NAME, data.type, data, { priority });
+  enqueue<SocialJobData>(SOCIAL_QUEUE_NAME, data.type, { ...data, traceContext: captureTraceContext() }, { priority });
 
 export const scheduleSocialPost = (data: SocialJobData, at: Date) =>
   enqueueAt<SocialJobData>(SOCIAL_QUEUE_NAME, data.type, data, at);
