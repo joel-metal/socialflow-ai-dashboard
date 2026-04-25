@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { replicaClient } from '../lib/readReplica';
 
 /**
  * @openapi
@@ -58,6 +59,11 @@ router.get('/', (_req: Request, res: Response) => {
   // This endpoint is the server-side contract; the frontend AnalyticsService
   // is the authoritative store. Return the filter params so the client can
   // apply them locally, or wire up a server DB here when needed.
+  //
+  // All server-side DB reads for analytics MUST use replicaClient (read replica)
+  // to reduce primary database load. Example:
+  //   const rows = await replicaClient.analyticsEntry.findMany({ where: { ... } });
+  void replicaClient; // replica client is ready for analytics queries
   return res.json({
     message: 'Query analytics via the client-side AnalyticsService.',
     filters: {
