@@ -368,6 +368,8 @@ export class IPFSService {
     // sort by lastAccess ascending (oldest first)
     all.sort((a, b) => (a.lastAccess || 0) - (b.lastAccess || 0))
     for (const entry of all) {
+      const pin = await idbGet('pins', entry.cid)
+      if (pin?.pinned) continue
       await idbDelete('files', entry.cid)
       total -= entry.size || 0
       if (total <= limit) break
