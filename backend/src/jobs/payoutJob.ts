@@ -1,6 +1,7 @@
 import { Job } from 'bullmq';
 import { queueManager } from '../queues/queueManager';
 import { PayoutJobData } from '../queues/payoutQueue';
+import { prisma } from '../lib/prisma';
 
 /**
  * Payout job processor
@@ -78,8 +79,27 @@ export async function processPayoutJob(job: Job<PayoutJobData>) {
       metadata,
     };
   } catch (error: any) {
-    console.error(`[PayoutJob] Job ${job.id} failed:`, error.message);
-    throw new Error(`Failed to process payout: ${error.message}`);
+    const reason = error.message as string;
+    console.error(`[PayoutJob] Job ${job.id} failed:`, reason);
+
+    // Persist the failure reason and timestamp for audit / operational review.
+    try {
+      await prisma.payoutFailure.create({
+        data: {
+          jobId: job.id ?? 'unknown',
+          groupId: groupId ?? 'unknown',
+          recipient: recipient ?? 'unknown',
+          amount: amount ?? 0,
+          currency: currency ?? 'unknown',
+          reason,
+        },
+      });
+    } catch (dbErr: any) {
+      // Don't mask the original error; log the DB write failure separately.
+      console.error(`[PayoutJob] Failed to persist payout failure record:`, dbErr.message);
+    }
+
+    throw new Error(`Failed to process payout: ${reason}`);
   }
 }
 

@@ -29,7 +29,13 @@ export class BillingService {
     const existing = SubscriptionStore.findByUserId(userId);
     if (existing) return existing;
 
-    const customer = await stripe().customers.create({ email, metadata: { userId } });
+    // Search for an existing Stripe customer by email before creating a new one
+    // to prevent duplicate customers when provisionUser is called more than once.
+    const existingCustomers = await stripe().customers.list({ email, limit: 1 });
+    const customer =
+      existingCustomers.data.length > 0
+        ? existingCustomers.data[0]
+        : await stripe().customers.create({ email, metadata: { userId } });
 
     const sub: Subscription = {
       id: randomUUID(),
@@ -68,9 +74,19 @@ export class BillingService {
     const sub = SubscriptionStore.findByUserId(userId);
     if (!sub) throw new Error('User not provisioned for billing');
 
+    // Explicitly list accepted payment methods to prevent unexpected changes
+    // caused by Stripe dashboard defaults. Configurable via STRIPE_PAYMENT_METHODS
+    // (comma-separated, e.g. "card,link"). Defaults to card-only.
+    const rawMethods = process.env.STRIPE_PAYMENT_METHODS ?? 'card';
+    const paymentMethodTypes = rawMethods
+      .split(',')
+      .map((m) => m.trim())
+      .filter(Boolean) as Stripe.Checkout.SessionCreateParams.PaymentMethodType[];
+
     const session = await stripe().checkout.sessions.create({
       customer: sub.stripeCustomerId,
       mode: 'subscription',
+      payment_method_types: paymentMethodTypes,
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: successUrl,
       cancel_url: cancelUrl,
@@ -115,6 +131,31 @@ export class BillingService {
     SubscriptionStore.patch(userId, { creditsRemaining: newBalance });
     CreditLogStore.append({ userId, action, delta: -cost, balanceAfter: newBalance });
 
+    return newBalance;
+  }
+
+  /**
+   * Refund credits for a previously deducted action (compensating transaction).
+   * Used when a downstream operation (e.g. platform publish) fails after credits
+   * have already been deducted, so the user is not left short-changed.
+   * Returns the restored balance.
+   */
+  public refundCredits(userId: string, action: CreditAction, reason?: string): number {
+    const sub = SubscriptionStore.findByUserId(userId);
+    if (!sub) throw new Error('No subscription found for user');
+
+    const cost = ACTION_COST[action] ?? 1;
+    const newBalance = sub.creditsRemaining + cost;
+    SubscriptionStore.patch(userId, { creditsRemaining: newBalance });
+    CreditLogStore.append({
+      userId,
+      action: 'credit:topup',
+      delta: cost,
+      balanceAfter: newBalance,
+      metadata: { reason: reason ?? 'refund', refundedAction: action },
+    });
+
+    logger.info('Credits refunded', { userId, action, cost, newBalance, reason });
     return newBalance;
   }
 
