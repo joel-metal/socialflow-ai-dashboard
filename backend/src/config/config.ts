@@ -131,6 +131,9 @@ const envSchema = z.object({
   MEILISEARCH_HOST: z.string().default('http://localhost:7700'),
   MEILISEARCH_ADMIN_KEY: z.string().optional(),
   MEILISEARCH_SEARCH_KEY: z.string().optional(),
+
+  // ── AWS S3 ────────────────────────────────────────────────────────────────
+  S3_PRESIGNED_URL_EXPIRY_SECONDS: z.coerce.number().int().positive().default(3600),
 });
 
 export type Env = z.infer<typeof envSchema>;
