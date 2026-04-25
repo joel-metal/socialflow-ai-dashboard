@@ -7,9 +7,11 @@ jest.mock('../../lib/prisma', () => ({
   prisma: {
     analyticsEntry: {
       findMany: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     },
     post: {
       findMany: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     },
   },
 }));
@@ -44,6 +46,20 @@ describe('ExportService', () => {
         'Content-Disposition',
         'attachment; filename="analytics.csv"',
       );
+    });
+
+    it('should set Content-Length header based on row count', async () => {
+      (prisma.analyticsEntry.count as jest.Mock).mockResolvedValue(10);
+      (prisma.analyticsEntry.findMany as jest.Mock).mockResolvedValue([]);
+
+      await ExportService.streamAnalyticsAsCSV(
+        'org-123',
+        new Date('2025-01-01'),
+        new Date('2025-12-31'),
+        mockRes as Response,
+      );
+
+      expect(mockRes.setHeader).toHaveBeenCalledWith('Content-Length', expect.any(Number));
     });
 
     it('should query analytics with correct date range', async () => {
