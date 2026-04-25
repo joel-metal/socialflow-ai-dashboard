@@ -124,7 +124,7 @@ interface IStorageProvider {
   
   delete(publicId: string): Promise<boolean>;
   
-  getUrl(publicId: string, options?: { transformation?: ImageTransformation }): string;
+  getUrl(publicId: string, options?: { transformation?: ImageTransformation; expirySeconds?: number }): string;
 }
 
 // ============================================
@@ -198,9 +198,10 @@ class S3Provider implements IStorageProvider {
     }
   }
 
-  getUrl(publicId: string, options?: { transformation?: ImageTransformation }): string {
+  getUrl(publicId: string, options?: { transformation?: ImageTransformation; expirySeconds?: number }): string {
     // S3 doesn't support on-the-fly transformations natively
     // In production, you might use CloudFront with Lambda@Edge
+    // expirySeconds can be used to generate presigned URLs with custom expiry
     return `${this.baseUrl}/${publicId}`;
   }
 
@@ -315,7 +316,7 @@ class CloudinaryProvider implements IStorageProvider {
     }
   }
 
-  getUrl(publicId: string, options?: { transformation?: ImageTransformation }): string {
+  getUrl(publicId: string, options?: { transformation?: ImageTransformation; expirySeconds?: number }): string {
     let url = `https://res.cloudinary.com/${this.cloudName}/image/upload`;
     
     if (options?.transformation) {
@@ -456,7 +457,8 @@ export class StorageService {
     publicId: string,
     width?: number,
     height?: number,
-    format: 'auto' | 'webp' | 'jpg' | 'png' = 'auto'
+    format: 'auto' | 'webp' | 'jpg' | 'png' = 'auto',
+    expirySeconds?: number
   ): string {
     return this.provider.getUrl(publicId, {
       transformation: {
@@ -465,6 +467,7 @@ export class StorageService {
         quality: 'auto',
         format,
       },
+      expirySeconds,
     });
   }
 
