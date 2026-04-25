@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface PasswordRotationModalProps {
   isOpen: boolean;
@@ -19,6 +19,16 @@ export const PasswordRotationModal: React.FC<PasswordRotationModalProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState('');
+
+  // Clear sensitive fields on unmount
+  useEffect(() => {
+    return () => {
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setLocalError('');
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
