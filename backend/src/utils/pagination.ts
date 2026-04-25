@@ -172,3 +172,44 @@ export function buildCursorResponse<T extends { id: string }>(
     },
   };
 }
+
+// ── Timestamp cursor encoding ─────────────────────────────────────────────────
+
+export interface TimestampCursor {
+  id: string;
+  /** ISO timestamp — falls back to createdAt when updatedAt is null */
+  timestamp: string;
+}
+
+/**
+ * Encode a record into a base64 cursor string.
+ * Uses `updatedAt` when available, falls back to `createdAt` to handle
+ * records where `updatedAt` is null (fixes #669).
+ */
+export function encodeCursor(record: { id: string; updatedAt?: Date | null; createdAt: Date }): string {
+  const timestamp = (record.updatedAt ?? record.createdAt).toISOString();
+  return Buffer.from(JSON.stringify({ id: record.id, timestamp })).toString('base64');
+}
+
+/**
+ * Decode a base64 cursor string back to a TimestampCursor.
+ * Returns null if the cursor is malformed.
+ */
+export function decodeCursor(cursor: string): TimestampCursor | null {
+  try {
+    const decoded = JSON.parse(Buffer.from(cursor, 'base64').toString('utf8')) as unknown;
+    if (
+      typeof decoded === 'object' &&
+      decoded !== null &&
+      'id' in decoded &&
+      'timestamp' in decoded &&
+      typeof (decoded as TimestampCursor).id === 'string' &&
+      typeof (decoded as TimestampCursor).timestamp === 'string'
+    ) {
+      return decoded as TimestampCursor;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

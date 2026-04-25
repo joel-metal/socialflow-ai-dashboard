@@ -82,6 +82,22 @@ export const bullmqQueueWaiting = new Gauge({
   registers: [register],
 });
 
+/**
+ * Data pruning job counters — incremented after each pruning run.
+ * Used for alerting and compliance tracking.
+ */
+export const filesPrunedTotal = new Counter({
+  name: 'files_pruned_total',
+  help: 'Total number of files deleted by the data pruning job',
+  registers: [register],
+});
+
+export const filesArchivedTotal = new Counter({
+  name: 'files_archived_total',
+  help: 'Total number of files archived by the data pruning job',
+  registers: [register],
+});
+
 /** Map a request path to an SLI category. */
 export function resolveCategory(path: string): string {
   if (/^\/(health|status)/.test(path) || /\/health/.test(path)) return 'health';
