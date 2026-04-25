@@ -23,7 +23,6 @@
     "format": "prettier --write 'src/**/*.ts'"
   },
   "dependencies": {
-    "@socialflow/shared": "*",
     "@apollo/server": "^5.5.0",
     "@as-integrations/express4": "^1.1.2",
     "@as-integrations/express5": "^1.1.2",
@@ -41,6 +40,7 @@
     "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "^7.5.0",
     "@prisma/instrumentation": "^7.5.0",
+    "@socialflow/shared": "*",
     "@socket.io/redis-adapter": "^8.3.0",
     "@types/compression": "^1.8.1",
     "@types/opossum": "^8.1.9",

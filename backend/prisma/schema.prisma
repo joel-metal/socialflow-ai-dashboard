@@ -191,3 +191,20 @@ model WebhookDelivery {
   @@index([status, nextRetryAt])
   @@index([createdAt])
 }
+
+/// Audit record written whenever a payout job fails.
+/// Captures the failure reason and timestamp for operational review.
+model PayoutFailure {
+  id          String   @id @default(uuid())
+  jobId       String
+  groupId     String
+  recipient   String
+  amount      Float
+  currency    String
+  reason      String
+  failedAt    DateTime @default(now())
+
+  @@index([jobId])
+  @@index([groupId])
+  @@index([failedAt])
+}

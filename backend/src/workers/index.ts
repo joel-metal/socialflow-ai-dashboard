@@ -21,6 +21,7 @@ import { instagramService } from '../services/InstagramService';
 import { tiktokService } from '../services/TikTokService';
 import { facebookService } from '../services/FacebookService';
 import { ValidationError } from '../lib/errors';
+import { billingService } from '../services/BillingService';
 
 const logger = createLogger('workers');
 
@@ -141,57 +142,78 @@ const socialProcessors: Record<SocialJobType, (job: Job<SocialJobData>) => Promi
 
     const token = requireToken(job);
 
-    switch (platform) {
-      case 'twitter': {
-        const post = await twitterService.postTweet({ text: payload.content ?? '' });
-        return { postId: post.id, platform, publishedAt: post.created_at };
+    try {
+      switch (platform) {
+        case 'twitter': {
+          const post = await twitterService.postTweet({ text: payload.content ?? '' });
+          return { postId: post.id, platform, publishedAt: post.created_at };
+        }
+        case 'linkedin': {
+          const authorUrn = payload.options?.authorUrn as string;
+          if (!authorUrn) throw new ValidationError('authorUrn required for LinkedIn', undefined, 'INVALID_PAYLOAD');
+          const result = await linkedInService.shareContent(token, {
+            authorUrn,
+            text: payload.content ?? '',
+            url: payload.options?.url as string | undefined,
+            title: payload.options?.title as string | undefined,
+            description: payload.options?.description as string | undefined,
+          });
+          return { postId: result.id, platform, publishedAt: new Date().toISOString() };
+        }
+        case 'instagram': {
+          const igAccountId = payload.options?.igAccountId as string;
+          if (!igAccountId) throw new ValidationError('igAccountId required for Instagram', undefined, 'INVALID_PAYLOAD');
+          const result = await instagramService.publish({
+            igAccountId,
+            accessToken: token,
+            mediaType: (payload.options?.mediaType as any) ?? 'IMAGE',
+            mediaUrl: payload.mediaUrls?.[0] ?? '',
+            caption: payload.content,
+          });
+          return { postId: result.mediaId, platform, publishedAt: result.publishedAt };
+        }
+        case 'tiktok': {
+          const videoUrl = payload.mediaUrls?.[0];
+          if (!videoUrl) throw new ValidationError('mediaUrls[0] required for TikTok video', undefined, 'INVALID_PAYLOAD');
+          const result = await tiktokService.uploadVideoFromUrl(token, {
+            videoSource: videoUrl,
+            sourceType: 'PULL_FROM_URL',
+            title: payload.content ?? 'New video',
+          });
+          return { postId: result.publishId, platform, publishedAt: new Date().toISOString() };
+        }
+        case 'facebook': {
+          const pageId = payload.options?.pageId as string;
+          if (!pageId) throw new ValidationError('pageId required for Facebook', undefined, 'INVALID_PAYLOAD');
+          if (!payload.content) throw new ValidationError('content required for Facebook', undefined, 'INVALID_PAYLOAD');
+          const result = await facebookService.postToPage({
+            pageId,
+            message: payload.content,
+          });
+          return { postId: result.id, platform, publishedAt: new Date().toISOString() };
+        }
+        default:
+          throw new ValidationError(`Unsupported platform: ${platform}`, undefined, 'UNSUPPORTED_PLATFORM');
       }
-      case 'linkedin': {
-        const authorUrn = payload.options?.authorUrn as string;
-        if (!authorUrn) throw new ValidationError('authorUrn required for LinkedIn', undefined, 'INVALID_PAYLOAD');
-        const result = await linkedInService.shareContent(token, {
-          authorUrn,
-          text: payload.content ?? '',
-          url: payload.options?.url as string | undefined,
-          title: payload.options?.title as string | undefined,
-          description: payload.options?.description as string | undefined,
-        });
-        return { postId: result.id, platform, publishedAt: new Date().toISOString() };
+    } catch (err) {
+      // Compensating credit refund: credits were deducted before the job was
+      // enqueued. If the platform API call fails, restore them so the user is
+      // not left short-changed.
+      if (userId && billingService.isConfigured()) {
+        try {
+          billingService.refundCredits(userId, 'post:publish', `platform_failure:${platform}`);
+          logger.info('Credits refunded after publish failure', { userId, platform, jobId: job.id });
+        } catch (refundErr) {
+          // Log but don't mask the original error
+          logger.error('Failed to refund credits after publish failure', {
+            userId,
+            platform,
+            jobId: job.id,
+            error: (refundErr as Error).message,
+          });
+        }
       }
-      case 'instagram': {
-        const igAccountId = payload.options?.igAccountId as string;
-        if (!igAccountId) throw new ValidationError('igAccountId required for Instagram', undefined, 'INVALID_PAYLOAD');
-        const result = await instagramService.publish({
-          igAccountId,
-          accessToken: token,
-          mediaType: (payload.options?.mediaType as any) ?? 'IMAGE',
-          mediaUrl: payload.mediaUrls?.[0] ?? '',
-          caption: payload.content,
-        });
-        return { postId: result.mediaId, platform, publishedAt: result.publishedAt };
-      }
-      case 'tiktok': {
-        const videoUrl = payload.mediaUrls?.[0];
-        if (!videoUrl) throw new ValidationError('mediaUrls[0] required for TikTok video', undefined, 'INVALID_PAYLOAD');
-        const result = await tiktokService.uploadVideoFromUrl(token, {
-          videoSource: videoUrl,
-          sourceType: 'PULL_FROM_URL',
-          title: payload.content ?? 'New video',
-        });
-        return { postId: result.publishId, platform, publishedAt: new Date().toISOString() };
-      }
-      case 'facebook': {
-        const pageId = payload.options?.pageId as string;
-        if (!pageId) throw new ValidationError('pageId required for Facebook', undefined, 'INVALID_PAYLOAD');
-        if (!payload.content) throw new ValidationError('content required for Facebook', undefined, 'INVALID_PAYLOAD');
-        const result = await facebookService.postToPage({
-          pageId,
-          message: payload.content,
-        });
-        return { postId: result.id, platform, publishedAt: new Date().toISOString() };
-      }
-      default:
-        throw new ValidationError(`Unsupported platform: ${platform}`, undefined, 'UNSUPPORTED_PLATFORM');
+      throw err;
     }
   },
 
