@@ -96,10 +96,12 @@ router.post('/upload', upload.single('image'), async (req: Request, res: Respons
       buffer,
       format: resultFormat,
       cacheKey,
+      etag,
     } = await ImageOptimizationService.optimize(req.file.path, options);
 
     res.setHeader('Content-Type', `image/${resultFormat}`);
-    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('ETag', etag);
     res.setHeader('X-Cache-Key', cacheKey);
     res.send(buffer);
   } catch (error) {
@@ -178,10 +180,12 @@ router.get('/proxy', async (req: Request, res: Response) => {
       buffer,
       format: resultFormat,
       cacheKey,
+      etag,
     } = await ImageOptimizationService.optimize(fullPath, options);
 
     res.setHeader('Content-Type', `image/${resultFormat}`);
-    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('ETag', etag);
     res.setHeader('X-Cache-Key', cacheKey);
     res.send(buffer);
   } catch (error) {
