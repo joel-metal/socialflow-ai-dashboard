@@ -1,3 +1,5 @@
+import 'reflect-metadata';
+import { injectable } from 'inversify';
 import CircuitBreaker from 'opossum';
 import {
   CircuitBreakerConfig,
@@ -45,6 +47,7 @@ export interface CircuitStats {
  * - Real-time monitoring and statistics
  * - Health check integration
  */
+@injectable()
 class CircuitBreakerService {
   private breakers: Map<string, CircuitBreaker> = new Map();
   private fallbackHandlers: Map<string, (...args: unknown[]) => unknown> = new Map();
@@ -278,3 +281,4 @@ export class CircuitBreakerError extends Error {
 
 // Singleton instance
 export const circuitBreakerService = new CircuitBreakerService();
+export { CircuitBreakerService };
