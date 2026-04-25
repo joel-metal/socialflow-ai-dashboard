@@ -131,6 +131,11 @@ const envSchema = z.object({
   MEILISEARCH_HOST: z.string().default('http://localhost:7700'),
   MEILISEARCH_ADMIN_KEY: z.string().optional(),
   MEILISEARCH_SEARCH_KEY: z.string().optional(),
+
+  // ── Twilio SMS ────────────────────────────────────────────────────────────
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM_NUMBER: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

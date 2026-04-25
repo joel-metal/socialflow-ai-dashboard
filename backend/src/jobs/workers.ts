@@ -1,7 +1,9 @@
 import { queueManager } from '../queues/queueManager';
 import { Worker } from 'bullmq';
 import { moderate } from '../services/ModerationService';
-import { MODERATION_QUEUE_NAME } from '../queues/moderationQueue';
+import { MODERATION_QUEUE_NAME, enqueueToDLQ } from '../queues/moderationQueue';
+import { getSmsService } from '../services/smsService';
+import { logger } from '../lib/logger';
 
 // Email job processor
 async function processEmailJob(job: any) {
@@ -207,7 +209,7 @@ async function processNotificationJob(job: any) {
       // await pushService.send(recipient, { title, body: message, data });
       break;
     case 'sms':
-      // await smsService.send(recipient, message);
+      await getSmsService().send(recipient, _message);
       break;
     case 'in_app':
       // await inAppService.create(recipient, { title, message, data });
@@ -333,7 +335,7 @@ export function initializeWorkers(): Map<string, Worker> {
   });
   workers.set('notification', notificationWorker);
 
-  // Moderation worker
+  // Moderation worker with DLQ routing
   const moderationWorker = queueManager.createWorker(
     MODERATION_QUEUE_NAME,
     async (job) => {
@@ -343,6 +345,17 @@ export function initializeWorkers(): Map<string, Worker> {
     },
     { concurrency: 5 },
   );
+
+  // Handle failed jobs that exceed retry limit
+  moderationWorker.on('failed', async (job, error) => {
+    if (job && job.attemptsMade >= (job.opts.attempts || 3)) {
+      logger.warn(
+        `[moderation-worker] Job ${job.id} exhausted retries, moving to DLQ: ${error.message}`,
+      );
+      await enqueueToDLQ(job.data.postId, job.id || 'unknown', error.message);
+    }
+  });
+
   workers.set(MODERATION_QUEUE_NAME, moderationWorker);
 
   console.log(`Initialized ${workers.size} workers`);

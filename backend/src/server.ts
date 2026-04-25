@@ -17,6 +17,7 @@ import { createLogger } from './lib/logger';
 import { prisma } from './lib/prisma';
 import { Worker } from 'bullmq';
 import { Server } from 'http';
+import { createSmsService } from './services/smsService';
 
 const logger = createLogger('server');
 const PORT = config.BACKEND_PORT;
@@ -208,6 +209,13 @@ process.on('SIGTERM', () => {
 export const bootstrap = async (exit?: (code: number) => void): Promise<void> => {
   const doExit = exit ?? ((code) => process.exit(code));
   try {
+    // Initialize SMS service
+    createSmsService({
+      accountSid: config.TWILIO_ACCOUNT_SID,
+      authToken: config.TWILIO_AUTH_TOKEN,
+      fromNumber: config.TWILIO_FROM_NUMBER,
+    });
+
     // Initialize job queue workers
     logger.info('Initializing job queue workers...');
     initializeWorkers();
