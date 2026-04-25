@@ -17,7 +17,15 @@ export interface PostDocument {
 /** Ensure the posts index exists with the correct settings. Call once at startup. */
 export async function initSearchIndex(): Promise<void> {
   const client = getMeiliClient();
-  await client.createIndex(POSTS_INDEX, { primaryKey: 'id' });
+  try {
+    await client.createIndex(POSTS_INDEX, { primaryKey: 'id' });
+  } catch (err) {
+    // Index may already exist; continue to apply settings
+    if ((err as any).code !== 'index_already_exists') {
+      throw err;
+    }
+  }
+  
   const index = client.index(POSTS_INDEX);
   await index.updateSettings({
     searchableAttributes: ['content', 'platform'],
