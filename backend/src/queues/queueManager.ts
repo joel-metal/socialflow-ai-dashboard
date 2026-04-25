@@ -396,23 +396,24 @@ export class QueueManager {
   }
 
   /**
-   * Close all queues and workers gracefully
+   * Close all queues and workers gracefully.
+   * Workers are drained first so in-flight jobs can complete before
+   * the Redis connection is torn down.
    */
   async closeAll(): Promise<void> {
     console.log('Closing all queues and workers...');
 
-    // Close all workers first
-    const workerClosePromises = Array.from(this.workers.values()).map((worker) => worker.close());
+    // 1. Drain workers — wait for in-flight jobs to finish
+    await Promise.all(Array.from(this.workers.values()).map((worker) => worker.close()));
 
-    // Close all queue events
-    const eventsClosePromises = Array.from(this.queueEvents.values()).map((events) =>
-      events.close(),
-    );
+    // 2. Close queue events and queues
+    await Promise.all([
+      ...Array.from(this.queueEvents.values()).map((events) => events.close()),
+      ...Array.from(this.queues.values()).map((queue) => queue.close()),
+    ]);
 
-    // Close all queues
-    const queueClosePromises = Array.from(this.queues.values()).map((queue) => queue.close());
-
-    await Promise.all([...workerClosePromises, ...eventsClosePromises, ...queueClosePromises]);
+    // 3. Close the shared Redis client last
+    await closeRedisClient();
 
     console.log('All queues, workers, and connections closed');
   }
