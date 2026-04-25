@@ -68,7 +68,7 @@ export const ImageOptimizationService = {
   optimize: async (
     inputPath: string,
     options: OptimizationOptions = {},
-  ): Promise<{ buffer: Buffer; format: string; cacheKey: string }> => {
+  ): Promise<{ buffer: Buffer; format: string; cacheKey: string; etag: string }> => {
     const format = options.format || 'webp';
     const cacheKey = ImageOptimizationService.getCacheKey(inputPath, options);
     const cachePath = ImageOptimizationService.getCachePath(cacheKey, format);
@@ -76,7 +76,8 @@ export const ImageOptimizationService = {
     // Check cache
     try {
       const cached = await fs.readFile(cachePath);
-      return { buffer: cached, format, cacheKey };
+      const etag = `"${crypto.createHash('sha256').update(cached).digest('hex')}"`;
+      return { buffer: cached, format, cacheKey, etag };
     } catch {
       // Cache miss, proceed with optimization
     }
@@ -110,7 +111,8 @@ export const ImageOptimizationService = {
       console.error('Failed to cache optimized image:', error);
     }
 
-    return { buffer, format, cacheKey };
+    const etag = `"${crypto.createHash('sha256').update(buffer).digest('hex')}"`;
+    return { buffer, format, cacheKey, etag };
   },
 
   /**
