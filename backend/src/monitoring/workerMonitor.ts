@@ -22,6 +22,8 @@ export interface WorkerMonitorOptions {
   stuckJobThresholdMs?: number;
   maxRestartsPerHour?: number;
   maxRecoveryAttempts?: number;
+  restartBackoffBaseMs?: number;
+  restartBackoffMaxMs?: number;
   retryableFailurePatterns?: RegExp[];
   alertHandler?: (alert: MonitorAlert) => Promise<void> | void;
   logger?: Pick<Console, 'info' | 'warn' | 'error'>;
@@ -62,6 +64,8 @@ interface RegisteredWorker {
   lastRestartAt?: string;
   listenerAttached: boolean;
   lastErrorMessage?: string;
+  consecutiveRestarts: number;
+  lastRestartTimestamp?: number;
 }
 
 interface MonitoredQueue {
@@ -82,7 +86,10 @@ const DEFAULT_LATENCY_THRESHOLD_MS = 60000;
 const DEFAULT_STUCK_JOB_THRESHOLD_MS = 300000;
 const DEFAULT_MAX_RESTARTS_PER_HOUR = 3;
 const DEFAULT_MAX_RECOVERY_ATTEMPTS = 5;
+const DEFAULT_RESTART_BACKOFF_BASE_MS = 1000;
+const DEFAULT_RESTART_BACKOFF_MAX_MS = 60000;
 const HOUR_MS = 60 * 60 * 1000;
+const RESTART_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes to reset consecutive counter
 
 export class WorkerMonitor {
   private readonly options: Required<Omit<WorkerMonitorOptions, 'connection'>> & {
@@ -102,6 +109,8 @@ export class WorkerMonitor {
       stuckJobThresholdMs: options.stuckJobThresholdMs ?? DEFAULT_STUCK_JOB_THRESHOLD_MS,
       maxRestartsPerHour: options.maxRestartsPerHour ?? DEFAULT_MAX_RESTARTS_PER_HOUR,
       maxRecoveryAttempts: options.maxRecoveryAttempts ?? DEFAULT_MAX_RECOVERY_ATTEMPTS,
+      restartBackoffBaseMs: options.restartBackoffBaseMs ?? DEFAULT_RESTART_BACKOFF_BASE_MS,
+      restartBackoffMaxMs: options.restartBackoffMaxMs ?? DEFAULT_RESTART_BACKOFF_MAX_MS,
       retryableFailurePatterns: options.retryableFailurePatterns ?? [
         /stalled/i,
         /timeout/i,
@@ -207,6 +216,7 @@ export class WorkerMonitor {
       restartDeniedCount: 0,
       restartCount: 0,
       listenerAttached: false,
+      consecutiveRestarts: 0,
     });
 
     if (this.running) {
@@ -467,6 +477,27 @@ export class WorkerMonitor {
       return;
     }
 
+    // Reset consecutive restarts if enough time has passed
+    if (
+      worker.lastRestartTimestamp &&
+      now - worker.lastRestartTimestamp > RESTART_COOLDOWN_MS
+    ) {
+      worker.consecutiveRestarts = 0;
+    }
+
+    // Calculate exponential backoff delay
+    const backoffDelay = Math.min(
+      Math.pow(2, worker.consecutiveRestarts) * this.options.restartBackoffBaseMs,
+      this.options.restartBackoffMaxMs,
+    );
+
+    if (backoffDelay > 0) {
+      this.options.logger.info(
+        `[worker-monitor] Applying backoff delay of ${backoffDelay}ms before restarting ${workerName} (attempt ${worker.consecutiveRestarts + 1})`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+    }
+
     try {
       if (worker.worker) {
         await worker.worker.close();
@@ -486,6 +517,8 @@ export class WorkerMonitor {
 
     worker.restartHistory.push(now);
     worker.restartCount += 1;
+    worker.consecutiveRestarts += 1;
+    worker.lastRestartTimestamp = now;
     worker.lastRestartAt = new Date(now).toISOString();
 
     await this.sendAlert({
@@ -498,6 +531,8 @@ export class WorkerMonitor {
         reason: context.reason,
         lastErrorMessage,
         restartCount: worker.restartCount,
+        consecutiveRestarts: worker.consecutiveRestarts,
+        backoffDelayMs: backoffDelay,
       },
     });
   }
