@@ -87,11 +87,11 @@ function validateSecureSigningConfig(): void {
 
 /**
  * Generates a cryptographically signed request for Cloudinary uploads.
- * Uses SHA1 signature algorithm as per Cloudinary's security standards.
+ * Uses SHA-256 signature algorithm for enhanced security (v2 API).
  * 
  * @param params - Upload parameters to sign
  * @param apiSecret - Cloudinary API secret (from environment)
- * @returns SHA1 signature hash
+ * @returns SHA-256 signature hash
  */
 function generateCloudinarySignature(params: Record<string, string>, apiSecret: string): string {
   // Sort parameters by key
@@ -107,8 +107,8 @@ function generateCloudinarySignature(params: Record<string, string>, apiSecret: 
     .map(([key, value]) => `${key}=${value}`)
     .join('&') + `&${apiSecret}`;
 
-  // Return SHA1 hash
-  return crypto.createHash('sha1').update(signatureString).digest('hex');
+  // Return SHA-256 hash (v2 API)
+  return crypto.createHash('sha256').update(signatureString).digest('hex');
 }
 
 // ============================================
