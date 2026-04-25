@@ -240,6 +240,7 @@ export class QueueManager {
       delay?: number;
       repeat?: any;
       cron?: string;
+      jobId?: string;
     },
   ): Promise<string | undefined> {
     const queue = this.queues.get(queueName);
@@ -251,7 +252,7 @@ export class QueueManager {
       priority: options?.priority,
       delay: options?.delay,
       repeat: options?.repeat,
-      jobId: `${queueName}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      jobId: options?.jobId ?? `${queueName}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     });
 
     console.log(`Job "${jobName}" added to queue "${queueName}" with ID: ${job.id}`);

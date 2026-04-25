@@ -39,11 +39,23 @@ export const emailQueue = queueManager.createQueue(EMAIL_QUEUE_NAME, {
 });
 
 /**
+ * Build a deterministic job ID to deduplicate transactional emails.
+ * Same recipient + template on the same UTC date will produce the same ID,
+ * so a second enqueue is a no-op in BullMQ.
+ */
+function transactionalJobId(to: string, templateId: string): string {
+  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  return `${to}:${templateId}:${date}`;
+}
+
+/**
  * Send a single email by adding to the queue
  */
 export async function sendEmail(data: EmailJobData): Promise<string | undefined> {
+  const templateId = data.metadata?.templateId ?? 'default';
   const jobId = await queueManager.addJob(EMAIL_QUEUE_NAME, 'send-email', data, {
-    priority: 1, // High priority for single emails
+    priority: 1,
+    jobId: transactionalJobId(data.to, templateId),
   });
   return jobId;
 }
@@ -130,7 +142,11 @@ export async function sendTemplatedEmail(
     variables,
   };
 
-  return await sendEmail(templateData);
+  const jobId = await queueManager.addJob(EMAIL_QUEUE_NAME, 'send-email', templateData, {
+    priority: 1,
+    jobId: transactionalJobId(to, templateId),
+  });
+  return jobId;
 }
 
 /**
