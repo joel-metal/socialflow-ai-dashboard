@@ -293,6 +293,30 @@ const generateAiHashtags = async (
   return extractAiHashtags(response.text ?? '').slice(0, maxTags);
 };
 
+/**
+ * Deduplicates hashtags case-insensitively, preserving the first occurrence's casing.
+ */
+export const deduplicateHashtags = (hashtags: string[]): string[] => {
+  const seen = new Set<string>();
+  return hashtags.filter((tag) => {
+    const key = tag.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+/**
+ * Merges hashtag results from multiple language/platform runs and deduplicates them.
+ */
+export const mergeMultiLanguageHashtags = (
+  results: HashtagGenerationResult[],
+  maxTags = 20,
+): string[] => {
+  const merged = results.flatMap((r) => r.hashtags);
+  return deduplicateHashtags(merged).slice(0, maxTags);
+};
+
 export const generateHashtagSuggestions = async (
   options: GenerationOptions,
 ): Promise<HashtagGenerationResult> => {
