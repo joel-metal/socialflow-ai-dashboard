@@ -123,12 +123,29 @@ export async function syncContract(data: ContractSyncJobData): Promise<string | 
 }
 
 /**
- * Deploy smart contract
+ * Deploy smart contract with idempotency
  */
 export async function deployContract(data: ContractSyncJobData): Promise<string | undefined> {
+  // Generate deterministic job ID from contract metadata for idempotency
+  const jobId = generateDeploymentJobId(data);
+
   return await queueManager.addJob(SYNC_QUEUE_NAME, 'deploy-contract', data, {
     priority: 1, // High priority for deployments
+    jobId, // Use deterministic ID to prevent duplicate deployments
   });
+}
+
+/**
+ * Generate deterministic job ID for contract deployment
+ * Uses contract metadata to ensure retries don't create duplicate deployments
+ */
+function generateDeploymentJobId(data: ContractSyncJobData): string {
+  const { contractId, contractType, metadata } = data;
+  const deployer = metadata?.deployer || 'unknown';
+  const network = metadata?.network || 'default';
+
+  // Create deterministic ID from contract properties
+  return `deploy-${contractType}-${contractId}-${deployer}-${network}`;
 }
 
 /**
