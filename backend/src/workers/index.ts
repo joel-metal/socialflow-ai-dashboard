@@ -14,6 +14,7 @@ import { SOCIAL_QUEUE_NAME, SocialJobData, SocialJobType } from '../queues/socia
 import { aiService } from '../services/AIService';
 import { translationService } from '../services/TranslationService';
 import { prisma } from '../lib/prisma';
+import { withTransaction, TxClient } from '../lib/transaction';
 import { createLogger } from '../lib/logger';
 import { twitterService } from '../services/TwitterService';
 import { linkedInService } from '../services/LinkedInService';
@@ -37,9 +38,13 @@ function currentTraceId(): string | undefined {
 async function persistAIResult(
   job: Job<AIJobData>,
   output: Record<string, unknown>,
+  tx?: TxClient,
 ): Promise<void> {
-  await prisma.aIGenerationResult.create({
-    data: {
+  const client = tx ?? prisma;
+  await (client as any).aIGenerationResult.upsert({
+    where: { jobId: job.id! },
+    update: {},
+    create: {
       jobId: job.id!,
       userId: job.data.userId,
       organizationId: job.data.organizationId ?? null,
@@ -61,7 +66,7 @@ const aiProcessors: Record<AIJobType, (job: Job<AIJobData>) => Promise<unknown>>
 
     const caption = await aiService.generateCaption(prompt, platform, tone);
     const output = { caption, generatedAt: new Date().toISOString() };
-    await persistAIResult(job, output);
+    await withTransaction(async (tx) => persistAIResult(job, output, tx));
     return output;
   },
 
@@ -80,7 +85,7 @@ const aiProcessors: Record<AIJobType, (job: Job<AIJobData>) => Promise<unknown>>
       .map((t) => t.trim())
       .filter((t) => t.startsWith('#'));
     const output = { hashtags, generatedAt: new Date().toISOString() };
-    await persistAIResult(job, output);
+    await withTransaction(async (tx) => persistAIResult(job, output, tx));
     return output;
   },
 
@@ -90,7 +95,7 @@ const aiProcessors: Record<AIJobType, (job: Job<AIJobData>) => Promise<unknown>>
 
     const { text: content } = await aiService.generateContent(prompt, undefined, userId);
     const output = { content, generatedAt: new Date().toISOString() };
-    await persistAIResult(job, output);
+    await withTransaction(async (tx) => persistAIResult(job, output, tx));
     return output;
   },
 
@@ -100,7 +105,7 @@ const aiProcessors: Record<AIJobType, (job: Job<AIJobData>) => Promise<unknown>>
 
     const analysis = await aiService.analyzeContent(prompt);
     const output = { ...analysis, analysedAt: new Date().toISOString() };
-    await persistAIResult(job, output);
+    await withTransaction(async (tx) => persistAIResult(job, output, tx));
     return output;
   },
 
@@ -115,7 +120,7 @@ const aiProcessors: Record<AIJobType, (job: Job<AIJobData>) => Promise<unknown>>
       sourceLanguage: (options?.sourceLanguage as string) ?? undefined,
     });
     const output = { ...result, translatedAt: new Date().toISOString() };
-    await persistAIResult(job, output);
+    await withTransaction(async (tx) => persistAIResult(job, output, tx));
     return output;
   },
 };
