@@ -1,6 +1,7 @@
 import { createLogger } from '../lib/logger';
 import { prisma } from '../lib/prisma';
 import { AuditAction, AuditLogStore } from '../models/AuditLog';
+import { redactSensitiveFields } from '../utils/redactSensitiveFields';
 
 const logger = createLogger('audit');
 
@@ -33,6 +34,7 @@ class AuditLogger {
       userAgent: ctx.userAgent,
     });
 
+    const safeMetadata = ctx.metadata ? redactSensitiveFields(ctx.metadata) : undefined;
     try {
       await prisma.auditLog.create({
         data: {
@@ -40,7 +42,7 @@ class AuditLogger {
           action: ctx.action,
           resource: ctx.resourceType ?? null,
           resourceId: ctx.resourceId ?? null,
-          metadata: ctx.metadata ? (ctx.metadata as object) : undefined,
+          metadata: safeMetadata ? (safeMetadata as object) : undefined,
           ipAddress: ctx.ip,
           userAgent: ctx.userAgent,
         },
