@@ -70,7 +70,7 @@ const aiProcessors: Record<AIJobType, (job: Job<AIJobData>) => Promise<unknown>>
     const platform = (options?.platform as string) ?? 'general';
     logger.info('Generating hashtags', { jobId: job.id, userId });
 
-    const raw = await aiService.generateContent(
+    const { text: raw } = await aiService.generateContent(
       `Generate 5–10 relevant hashtags for a ${platform} post about: "${prompt}". Return only the hashtags, one per line, each starting with #.`,
       `#${platform} #content #update`,
       userId,
@@ -88,7 +88,7 @@ const aiProcessors: Record<AIJobType, (job: Job<AIJobData>) => Promise<unknown>>
     const { prompt, options, userId } = job.data;
     logger.info('Generating content', { jobId: job.id, userId });
 
-    const content = await aiService.generateContent(prompt, undefined, userId);
+    const { text: content } = await aiService.generateContent(prompt, undefined, userId);
     const output = { content, generatedAt: new Date().toISOString() };
     await persistAIResult(job, output);
     return output;

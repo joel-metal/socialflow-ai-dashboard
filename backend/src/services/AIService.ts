@@ -3,6 +3,12 @@ import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { circuitBreakerService } from './CircuitBreakerService';
 import { eventBus } from '../lib/eventBus';
 import { createLogger } from '../lib/logger';
+import { billingService } from './BillingService';
+
+export interface GenerateContentResult {
+  text: string;
+  totalTokens: number;
+}
 
 const logger = createLogger('ai-service');
 
@@ -47,13 +53,14 @@ class AIService {
 
   /**
    * Generate content with circuit breaker protection and distributed tracing.
-   * Pass userId to stream progress via SSE.
+   * Deducts credits post-call proportional to actual token usage.
+   * Pass userId to enable credit deduction and SSE progress events.
    */
   public async generateContent(
     prompt: string,
     fallbackResponse?: string,
     userId?: string,
-  ): Promise<string> {
+  ): Promise<GenerateContentResult> {
     if (!this.model) {
       throw new Error('Gemini AI not initialized. Please configure API_KEY.');
     }
@@ -90,18 +97,24 @@ class AIService {
 
           if (!text) throw new Error('Empty response from Gemini AI');
 
+          const totalTokens = res.usageMetadata?.totalTokenCount ?? 0;
           span.setAttribute('ai.response_length', text.length);
-          return text;
+          span.setAttribute('ai.total_tokens', totalTokens);
+          return { text, totalTokens };
         },
         async () => {
           if (fallbackResponse) {
             logger.warn('Circuit breaker open, using fallback response', { service: 'ai', state: 'open' });
             span.setAttribute('ai.fallback', true);
-            return fallbackResponse;
+            return { text: fallbackResponse, totalTokens: 0 };
           }
           throw new Error('AI service temporarily unavailable. Please try again later.');
         },
       );
+
+      if (userId && result.totalTokens > 0) {
+        billingService.deductCreditsForTokens(userId, result.totalTokens);
+      }
 
       if (userId) {
         eventBus.emitJobProgress({
@@ -146,10 +159,9 @@ class AIService {
     tone: string = 'professional',
   ): Promise<string> {
     const prompt = `Write a ${tone} social media caption for ${platform} about: "${topic}". Include relevant hashtags. Keep it engaging and concise.`;
-
     const fallback = `Check out our latest update about ${topic}! #${platform} #update`;
-
-    return this.generateContent(prompt, fallback);
+    const { text } = await this.generateContent(prompt, fallback);
+    return text;
   }
 
   /**
@@ -164,7 +176,7 @@ ${conversationHistory}
 Format output as a simple list of 3 strings separated by newlines. No numbering.`;
 
     try {
-      const response = await this.generateContent(prompt);
+      const { text: response } = await this.generateContent(prompt);
       return response
         .split('\n')
         .filter((line) => line.trim().length > 0)
@@ -204,7 +216,7 @@ Content: "${content}"
 Format as JSON: {"sentiment": "...", "topics": [...], "keywords": [...]}`;
 
     try {
-      const response = await this.generateContent(prompt);
+      const { text: response } = await this.generateContent(prompt);
       const parsed = JSON.parse(response);
       span.setAttribute('ai.sentiment', parsed.sentiment ?? 'unknown');
       span.setStatus({ code: SpanStatusCode.OK });

@@ -135,6 +135,31 @@ export class BillingService {
   }
 
   /**
+   * Deduct credits proportional to actual token usage (1 credit per token).
+   * Throws if the user has insufficient credits.
+   * Returns updated balance.
+   */
+  public deductCreditsForTokens(userId: string, tokens: number): number {
+    const sub = SubscriptionStore.findByUserId(userId);
+    if (!sub) throw new Error('No subscription found for user');
+    if (sub.status !== 'active' && sub.status !== 'trialing') {
+      throw new Error('Subscription is not active');
+    }
+
+    if (sub.creditsRemaining < tokens) {
+      throw new Error(
+        `Insufficient credits. Required: ${tokens}, available: ${sub.creditsRemaining}`,
+      );
+    }
+
+    const newBalance = sub.creditsRemaining - tokens;
+    SubscriptionStore.patch(userId, { creditsRemaining: newBalance });
+    CreditLogStore.append({ userId, action: 'ai:generate', delta: -tokens, balanceAfter: newBalance });
+
+    return newBalance;
+  }
+
+  /**
    * Refund credits for a previously deducted action (compensating transaction).
    * Used when a downstream operation (e.g. platform publish) fails after credits
    * have already been deducted, so the user is not left short-changed.
