@@ -24,6 +24,22 @@ module.exports = {
   },
   projects: [
     {
+      displayName: 'gemini-validation',
+      preset: 'ts-jest',
+      testEnvironment: 'node',
+      roots: ['<rootDir>/src'],
+      testMatch: ['**/__tests__/geminiImageValidation.test.ts'],
+      moduleNameMapper: {
+        '^uuid$': '<rootDir>/src/__tests__/integration/__mocks__/uuid.js',
+        '^opossum$': '<rootDir>/src/__tests__/__mocks__/opossum.js',
+        '^.*/lib/prisma$': '<rootDir>/src/__tests__/__mocks__/prisma.js',
+        '^.*/lib/logger$': '<rootDir>/src/__tests__/__mocks__/logger.js',
+      },
+      setupFiles: ['<rootDir>/src/__tests__/unitSetup.ts'],
+      setupFilesAfterEnv: ['<rootDir>/src/__tests__/otelTeardown.ts'],
+      transform: { '^.+\\.tsx?$': ['ts-jest', { diagnostics: false }] },
+    },
+    {
       displayName: 'unit',
       preset: 'ts-jest',
       testEnvironment: 'node',
@@ -33,6 +49,7 @@ module.exports = {
         '**/tests/**/*.test.ts',
         '**/services/__tests__/**/*.test.ts',
         '!**/services/__tests__/CircuitBreakerService.integration.test.ts',
+        '!**/__tests__/geminiImageValidation.test.ts',
       ],
       moduleNameMapper: {
         ...sharedModuleNameMapper,
