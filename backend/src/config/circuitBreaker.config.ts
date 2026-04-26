@@ -87,6 +87,17 @@ export const CIRCUIT_CONFIGS = {
     name: 'linkedin-service',
   } as CircuitBreakerConfig,
 
+  // Instagram Graph API - Strict settings
+  instagram: {
+    timeout: 10000,
+    errorThresholdPercentage: 40,
+    resetTimeout: 30000,
+    rollingCountTimeout: 15000,
+    rollingCountBuckets: 10,
+    volumeThreshold: 5,
+    name: 'instagram-service',
+  } as CircuitBreakerConfig,
+
   // Blockchain RPC - Very strict
   blockchain: {
     timeout: 8000,               // 8 seconds
@@ -144,6 +155,10 @@ export const FALLBACK_STRATEGIES = {
   linkedin: {
     enabled: false,
     message: 'LinkedIn API unavailable. Please try again later.',
+  },
+  instagram: {
+    enabled: false,
+    message: 'Instagram API unavailable. Please try again later.',
   },
   blockchain: {
     enabled: false,
