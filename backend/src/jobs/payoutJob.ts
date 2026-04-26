@@ -1,6 +1,6 @@
 import { Job } from 'bullmq';
 import { queueManager } from '../queues/queueManager';
-import { PayoutJobData } from '../queues/payoutQueue';
+import { PayoutJobData, PAYOUT_QUEUE_NAME } from '../queues/payoutQueue';
 import { prisma } from '../lib/prisma';
 
 /**
@@ -168,6 +168,21 @@ export async function processBatchPayoutJob(job: Job<{ payouts: PayoutJobData[] 
   console.log(
     `[BatchPayoutJob] Job ${job.id} completed: ${successful} successful (${successfulAmount}), ${failed} failed`,
   );
+
+  // Re-enqueue failed items individually so each gets its own retry budget
+  if (failed > 0) {
+    const failedPayouts = payouts.filter((_, i) => !results[i].success);
+    const reEnqueueJobs = failedPayouts.map((payout) => ({
+      name: 'process-payout',
+      data: payout,
+      options: { priority: 1 },
+    }));
+    await queueManager.addBulkJobs(PAYOUT_QUEUE_NAME, reEnqueueJobs);
+
+    throw new Error(
+      `Batch job ${job.id} had ${failed}/${payouts.length} failed payouts; re-enqueued for retry`,
+    );
+  }
 
   return {
     success: true,
