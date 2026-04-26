@@ -55,7 +55,7 @@ class TwitterService {
   }
 
   /**
-   * Post a tweet with circuit breaker protection
+   * Post a tweet with circuit breaker + smart retry-after protection
    */
   public async postTweet(request: TwitterPostRequest): Promise<TwitterPost> {
     if (!this.isConfigured()) {
@@ -92,7 +92,7 @@ class TwitterService {
   }
 
   /**
-   * Get user timeline with circuit breaker protection
+   * Get user timeline with circuit breaker + smart retry-after protection
    */
   public async getUserTimeline(userId: string, maxResults: number = 10): Promise<TwitterPost[]> {
     if (!this.isConfigured()) {
@@ -127,7 +127,7 @@ class TwitterService {
   }
 
   /**
-   * Get user info with circuit breaker protection
+   * Get user info with circuit breaker + smart retry-after protection
    */
   public async getUserInfo(username: string): Promise<TwitterUser | null> {
     if (!this.isConfigured()) {
@@ -162,7 +162,7 @@ class TwitterService {
   }
 
   /**
-   * Search tweets with circuit breaker protection
+   * Search tweets with circuit breaker + smart retry-after protection
    */
   public async searchTweets(query: string, maxResults: number = 10): Promise<TwitterPost[]> {
     if (!this.isConfigured()) {
