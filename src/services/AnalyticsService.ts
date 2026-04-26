@@ -97,35 +97,213 @@ class AnalyticsDB {
 export const analyticsDB = new AnalyticsDB();
 
 // ---------------------------------------------------------------------------
+// Retry helper
+// ---------------------------------------------------------------------------
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  baseDelayMs = 500,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt));
+      }
+    }
+  }
+  throw lastError;
+}
+
+// ---------------------------------------------------------------------------
 // Platform fetchers
-// Each fetcher returns normalized PostAnalytics[]. Replace stub bodies with
-// real API calls once platform credentials are available.
 // ---------------------------------------------------------------------------
 
 type Fetcher = (accountId: string) => Promise<PostAnalytics[]>;
 
+/** Maps a Twitter API v2 tweet object to PostAnalytics. */
+function normalizeTwitterTweet(tweet: any): PostAnalytics {
+  const m = tweet.public_metrics ?? {};
+  return {
+    id: `twitter:${tweet.id}`,
+    platform: 'twitter',
+    postId: tweet.id,
+    postedAt: tweet.created_at ? new Date(tweet.created_at).getTime() : Date.now(),
+    likes: m.like_count ?? 0,
+    shares: (m.retweet_count ?? 0) + (m.quote_count ?? 0),
+    views: m.impression_count ?? 0,
+    comments: m.reply_count ?? 0,
+    syncedAt: 0, // stamped by caller
+  };
+}
+
 const fetchTwitter: Fetcher = async (accountId) => {
-  // TODO: call Twitter/X API v2 GET /2/users/:id/tweets with metrics
-  console.debug('[Analytics] Twitter fetch stub for', accountId);
-  return [];
+  const token = (window as any).__TWITTER_BEARER_TOKEN__ ?? '';
+  if (!token) {
+    console.warn('[Analytics] TWITTER_BEARER_TOKEN not available in client context');
+    return [];
+  }
+  return withRetry(async () => {
+    const params = new URLSearchParams({
+      max_results: '100',
+      'tweet.fields': 'created_at,public_metrics',
+    });
+    const res = await fetch(
+      `https://api.twitter.com/2/users/${accountId}/tweets?${params}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get('retry-after') ?? 60) * 1000;
+      await new Promise((r) => setTimeout(r, retryAfter));
+      throw new Error('Twitter rate limited — retrying');
+    }
+    if (!res.ok) throw new Error(`Twitter API error: ${res.status}`);
+    const data = await res.json();
+    return (data.data ?? []).map(normalizeTwitterTweet);
+  });
 };
+
+/** Maps a LinkedIn UGC post + stats to PostAnalytics. */
+function normalizeLinkedInPost(post: any, stats: any): PostAnalytics {
+  return {
+    id: `linkedin:${post.id}`,
+    platform: 'linkedin',
+    postId: post.id,
+    postedAt: post.created?.time ?? Date.now(),
+    likes: stats?.likesSummary?.totalLikes ?? 0,
+    shares: stats?.shareStatistics?.shareCount ?? 0,
+    views: stats?.shareStatistics?.impressionCount ?? 0,
+    comments: stats?.commentsSummary?.totalFirstLevelComments ?? 0,
+    syncedAt: 0,
+  };
+}
 
 const fetchLinkedIn: Fetcher = async (accountId) => {
-  // TODO: call LinkedIn Share Statistics API
-  console.debug('[Analytics] LinkedIn fetch stub for', accountId);
-  return [];
+  const token = (window as any).__LINKEDIN_ACCESS_TOKEN__ ?? '';
+  if (!token) {
+    console.warn('[Analytics] LinkedIn access token not available in client context');
+    return [];
+  }
+  return withRetry(async () => {
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'X-Restli-Protocol-Version': '2.0.0',
+    };
+    const postsRes = await fetch(
+      `https://api.linkedin.com/v2/ugcPosts?q=authors&authors=List(${encodeURIComponent(accountId)})&count=50`,
+      { headers },
+    );
+    if (postsRes.status === 429) throw new Error('LinkedIn rate limited — retrying');
+    if (!postsRes.ok) throw new Error(`LinkedIn API error: ${postsRes.status}`);
+    const postsData = await postsRes.json();
+    const posts: any[] = postsData.elements ?? [];
+
+    return Promise.all(
+      posts.map(async (post) => {
+        try {
+          const statsRes = await fetch(
+            `https://api.linkedin.com/v2/socialActions/${encodeURIComponent(post.id)}?projection=(likesSummary,commentsSummary,shareStatistics)`,
+            { headers },
+          );
+          const stats = statsRes.ok ? await statsRes.json() : {};
+          return normalizeLinkedInPost(post, stats);
+        } catch {
+          return normalizeLinkedInPost(post, {});
+        }
+      }),
+    );
+  });
 };
+
+/** Maps an Instagram Graph API media object to PostAnalytics. */
+function normalizeInstagramMedia(media: any): PostAnalytics {
+  return {
+    id: `instagram:${media.id}`,
+    platform: 'instagram',
+    postId: media.id,
+    postedAt: media.timestamp ? new Date(media.timestamp).getTime() : Date.now(),
+    likes: media.like_count ?? 0,
+    shares: 0, // Instagram Graph API does not expose share counts
+    views: media.impressions ?? media.video_views ?? 0,
+    comments: media.comments_count ?? 0,
+    syncedAt: 0,
+  };
+}
 
 const fetchInstagram: Fetcher = async (accountId) => {
-  // TODO: call Instagram Graph API /media?fields=like_count,comments_count
-  console.debug('[Analytics] Instagram fetch stub for', accountId);
-  return [];
+  const token = (window as any).__INSTAGRAM_ACCESS_TOKEN__ ?? '';
+  if (!token) {
+    console.warn('[Analytics] Instagram access token not available in client context');
+    return [];
+  }
+  return withRetry(async () => {
+    const params = new URLSearchParams({
+      fields: 'id,timestamp,like_count,comments_count,impressions,video_views',
+      access_token: token,
+      limit: '50',
+    });
+    const res = await fetch(
+      `https://graph.facebook.com/v18.0/${accountId}/media?${params}`,
+    );
+    if (res.status === 429) throw new Error('Instagram rate limited — retrying');
+    if (!res.ok) throw new Error(`Instagram API error: ${res.status}`);
+    const data = await res.json();
+    return (data.data ?? []).map(normalizeInstagramMedia);
+  });
 };
 
+/** Maps a TikTok video object to PostAnalytics. */
+function normalizeTikTokVideo(video: any): PostAnalytics {
+  const s = video.statistics ?? {};
+  return {
+    id: `tiktok:${video.id}`,
+    platform: 'tiktok',
+    postId: video.id,
+    postedAt: video.create_time ? video.create_time * 1000 : Date.now(),
+    likes: s.digg_count ?? 0,
+    shares: s.share_count ?? 0,
+    views: s.play_count ?? 0,
+    comments: s.comment_count ?? 0,
+    syncedAt: 0,
+  };
+}
+
 const fetchTikTok: Fetcher = async (accountId) => {
-  // TODO: call TikTok Research API /video/query/
-  console.debug('[Analytics] TikTok fetch stub for', accountId);
-  return [];
+  const token = (window as any).__TIKTOK_ACCESS_TOKEN__ ?? '';
+  if (!token) {
+    console.warn('[Analytics] TikTok access token not available in client context');
+    return [];
+  }
+  return withRetry(async () => {
+    const body = {
+      filters: { video_ids: [] },
+      fields: ['id', 'create_time', 'statistics'],
+      cursor: 0,
+      max_count: 20,
+    };
+    const res = await fetch(
+      `https://open.tiktokapis.com/v2/video/list/?fields=id,create_time,statistics`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    if (res.status === 429) throw new Error('TikTok rate limited — retrying');
+    if (!res.ok) throw new Error(`TikTok API error: ${res.status}`);
+    const data = await res.json();
+    if (data.error?.code && data.error.code !== 'ok') {
+      throw new Error(`TikTok API error: ${data.error.message}`);
+    }
+    return (data.data?.videos ?? []).map(normalizeTikTokVideo);
+  });
 };
 
 const FETCHERS: Record<Platform, Fetcher> = {

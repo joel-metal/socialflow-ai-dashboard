@@ -1,22 +1,57 @@
+import 'reflect-metadata';
+// Validate all environment variables at startup — throws if any required var is missing/invalid.
+import { config } from './config/config';
 import app from './app';
-import { getBackendPort } from './config/runtime';
+import { SocketService } from './services/SocketService';
+import { initializeWorkers } from './jobs/workers';
+import { startWorkers } from './workers/index';
+import { queueManager, closeRedisClient } from './queues/queueManager';
 import { startDataPruningJob, stopDataPruningJob } from './jobs/dataPruningJob';
+import { startYouTubeSyncJob, stopYouTubeSyncJob } from './jobs/youtubeSyncJob';
+import { startTikTokVideoWorker } from './jobs/tiktokVideoJob';
+import { startTwitterWebhookWorker } from './queues/twitterWebhookQueue';
 import { startWorkerMonitor, stopWorkerMonitor } from './monitoring/workerMonitorInstance';
+import { startHealthMonitoringJob, stopHealthMonitoringJob } from './jobs/healthMonitoringJob';
+import { initializeHealthMonitoring } from './monitoring/healthMonitoringInstance';
 import { createLogger } from './lib/logger';
 import { prisma } from './lib/prisma';
+import { Worker } from 'bullmq';
 import { Server } from 'http';
+import { createSmsService } from './services/smsService';
 
 const logger = createLogger('server');
-const PORT = getBackendPort();
+const PORT = config.BACKEND_PORT;
 
 let serverInstance: Server | null = null;
+let webhookWorker: Worker | null = null;
+let twitterWebhookWorker: Worker | null = null;
 let isShuttingDown = false;
+
+/**
+ * Dependencies injectable for testing
+ */
+export interface ShutdownDeps {
+  server: import('http').Server | null;
+  webhookWorker: import('bullmq').Worker | null;
+  twitterWebhookWorker: import('bullmq').Worker | null;
+}
 
 /**
  * Graceful shutdown handler
  * Closes all connections and cleans up resources before exiting
  */
-const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<void> => {
+export const gracefulShutdown = async (
+  signal: string,
+  exitCode: number = 0,
+  deps?: ShutdownDeps,
+  opts?: { exit?: (code: number) => void; timeoutMs?: number },
+): Promise<void> => {
+  const doExit = opts?.exit ?? ((code) => process.exit(code));
+  const timeoutMs = opts?.timeoutMs ?? 30000;
+  const srv = deps?.server ?? serverInstance;
+  const ww = deps?.webhookWorker ?? webhookWorker;
+  const tww = deps?.twitterWebhookWorker ?? twitterWebhookWorker;
+
   // Prevent multiple shutdown calls
   if (isShuttingDown) {
     logger.warn('Shutdown already in progress, ignoring duplicate signal');
@@ -29,14 +64,14 @@ const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<v
   // Set a timeout to force exit if graceful shutdown takes too long
   const forceExitTimeout = setTimeout(() => {
     logger.error('Graceful shutdown timeout exceeded, forcing exit');
-    process.exit(1);
-  }, 30000); // 30 seconds timeout
+    doExit(1);
+  }, timeoutMs);
 
   try {
     // Stop accepting new connections
-    if (serverInstance) {
+    if (srv) {
       await new Promise<void>((resolve, reject) => {
-        serverInstance!.close((err) => {
+        srv.close((err) => {
           if (err) {
             logger.error('Error closing HTTP server', { error: err });
             reject(err);
@@ -53,9 +88,31 @@ const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<v
       await stopWorkerMonitor();
       logger.info('Worker monitor stopped');
     } catch (error) {
-      logger.error('Failed to stop worker monitor', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error('Failed to stop worker monitor', { error: error instanceof Error ? error.message : String(error) });
+    }
+
+    // Stop health monitoring job
+    try {
+      await stopHealthMonitoringJob();
+      logger.info('Health monitoring job stopped');
+    } catch (error) {
+      logger.error('Failed to stop health monitoring job', { error: error instanceof Error ? error.message : String(error) });
+    }
+
+    // Stop webhook delivery worker
+    try {
+      if (ww) await ww.close();
+      logger.info('Webhook worker stopped');
+    } catch (error) {
+      logger.error('Failed to stop webhook worker', { error: error instanceof Error ? error.message : String(error) });
+    }
+
+    // Stop Twitter webhook worker
+    try {
+      if (tww) await tww.close();
+      logger.info('Twitter webhook worker stopped');
+    } catch (error) {
+      logger.error('Failed to stop Twitter webhook worker', { error: error instanceof Error ? error.message : String(error) });
     }
 
     // Stop data pruning job
@@ -63,9 +120,24 @@ const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<v
       await stopDataPruningJob();
       logger.info('Data pruning job stopped');
     } catch (error) {
-      logger.error('Failed to stop data pruning job', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error('Failed to stop data pruning job', { error: error instanceof Error ? error.message : String(error) });
+    }
+
+    // Stop YouTube sync job
+    try {
+      await stopYouTubeSyncJob();
+      logger.info('YouTube sync job stopped');
+    } catch (error) {
+      logger.error('Failed to stop YouTube sync job', { error: error instanceof Error ? error.message : String(error) });
+    }
+
+    // Close job queues and workers
+    try {
+      await queueManager.closeAll();
+      await closeRedisClient();
+      logger.info('All queues and workers closed successfully');
+    } catch (error) {
+      logger.error('Failed to close queues', { error: error instanceof Error ? error.message : String(error) });
     }
 
     // Close database connections
@@ -73,20 +145,16 @@ const gracefulShutdown = async (signal: string, exitCode: number = 0): Promise<v
       await prisma.$disconnect();
       logger.info('Database connections closed');
     } catch (error) {
-      logger.error('Failed to close database connections', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error('Failed to close database connections', { error: error instanceof Error ? error.message : String(error) });
     }
 
     clearTimeout(forceExitTimeout);
     logger.info('Shutdown complete');
-    process.exit(exitCode);
+    doExit(exitCode);
   } catch (error) {
     clearTimeout(forceExitTimeout);
-    logger.error('Error during graceful shutdown', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    process.exit(1);
+    logger.error('Error during graceful shutdown', { error: error instanceof Error ? error.message : String(error) });
+    doExit(1);
   }
 };
 
@@ -138,14 +206,47 @@ process.on('SIGTERM', () => {
 /**
  * Bootstrap the application
  */
-const bootstrap = async (): Promise<void> => {
+export const bootstrap = async (exit?: (code: number) => void): Promise<void> => {
+  const doExit = exit ?? ((code) => process.exit(code));
   try {
+    // Initialize SMS service
+    createSmsService({
+      accountSid: config.TWILIO_ACCOUNT_SID,
+      authToken: config.TWILIO_AUTH_TOKEN,
+      fromNumber: config.TWILIO_FROM_NUMBER,
+    });
+
+    // Initialize job queue workers
+    logger.info('Initializing job queue workers...');
+    initializeWorkers();
+    startWorkers();
+
+    // Initialize health monitoring
+    try {
+      initializeHealthMonitoring();
+      logger.info('Health monitoring initialized');
+    } catch (error) {
+      logger.error('Failed to initialize health monitoring', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     // Start worker monitor
     try {
       await startWorkerMonitor();
       logger.info('Worker monitor started');
     } catch (error) {
       logger.error('Failed to start worker monitor', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    // Start health monitoring job
+    try {
+      await startHealthMonitoringJob();
+      logger.info('Health monitoring job started');
+    } catch (error) {
+      logger.error('Failed to start health monitoring job', {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -160,10 +261,44 @@ const bootstrap = async (): Promise<void> => {
       });
     }
 
+    // Start YouTube analytics sync job
+    try {
+      await startYouTubeSyncJob();
+      logger.info('YouTube analytics sync job started');
+    } catch (error) {
+      logger.error('Failed to start YouTube sync job', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    // Start TikTok video upload worker
+    try {
+      startTikTokVideoWorker();
+      logger.info('TikTok video worker started');
+    } catch (error) {
+      logger.error('Failed to start TikTok video worker', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    // Start Twitter webhook event worker
+    try {
+      twitterWebhookWorker = startTwitterWebhookWorker();
+      logger.info('Twitter webhook worker started');
+    } catch (error) {
+      logger.error('Failed to start Twitter webhook worker', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     // Start HTTP server
     serverInstance = app.listen(PORT, () => {
       logger.info(`🚀 SocialFlow Backend is running on http://localhost:${PORT}`);
+      logger.info('📬 Job Queue System initialized');
     });
+
+    // Initialize Socket.io
+    SocketService.getInstance().initialize(serverInstance);
 
     // Handle server errors
     serverInstance.on('error', (error: Error) => {
@@ -174,8 +309,16 @@ const bootstrap = async (): Promise<void> => {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
-    process.exit(1);
+    doExit(1);
   }
 };
 
 void bootstrap();
+
+// ── Test-only exports ─────────────────────────────────────────────────────────
+export const _resetShutdownState = (): void => {
+  isShuttingDown = false;
+  serverInstance = null;
+  webhookWorker = null;
+  twitterWebhookWorker = null;
+};

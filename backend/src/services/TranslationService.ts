@@ -4,7 +4,7 @@ import {
   Translation,
   PreservedElement,
   SupportedLanguage,
-} from '../types/translation';
+} from '@socialflow/shared';
 
 /**
  * TranslationService - Backend translation service
@@ -36,7 +36,7 @@ class TranslationService {
     const { text, sourceLanguage, targetLanguages } = request;
 
     const { processedText, preservedElements } = this.extractPreservedElements(text, request);
-    const detectedSourceLang = sourceLanguage || await this.detectLanguage(text);
+    const detectedSourceLang = sourceLanguage || (await this.detectLanguage(text));
 
     const translations: Translation[] = [];
 
@@ -56,9 +56,17 @@ class TranslationService {
 
         // Try DeepL first
         if (this.isDeepLAvailable()) {
-          translatedText = await this.translateWithDeepL(processedText, detectedSourceLang, targetLang);
+          translatedText = await this.translateWithDeepL(
+            processedText,
+            detectedSourceLang,
+            targetLang,
+          );
         } else if (this.isGoogleTranslateAvailable()) {
-          translatedText = await this.translateWithGoogle(processedText, detectedSourceLang, targetLang);
+          translatedText = await this.translateWithGoogle(
+            processedText,
+            detectedSourceLang,
+            targetLang,
+          );
         } else {
           throw new Error('No translation provider available');
         }
@@ -97,7 +105,7 @@ class TranslationService {
    */
   private extractPreservedElements(
     text: string,
-    options: TranslationRequest
+    options: TranslationRequest,
   ): { processedText: string; preservedElements: PreservedElement[] } {
     let processedText = text;
     const preservedElements: PreservedElement[] = [];
@@ -131,7 +139,8 @@ class TranslationService {
     }
 
     if (options.preserveEmojis !== false) {
-      const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu;
+      const emojiRegex =
+        /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu;
       processedText = processedText.replace(emojiRegex, (match) => {
         const placeholder = `__EMOJI_${placeholderIndex++}__`;
         preservedElements.push({ type: 'emoji', value: match, placeholder });
@@ -147,10 +156,10 @@ class TranslationService {
    */
   private restorePreservedElements(
     translatedText: string,
-    preservedElements: PreservedElement[]
+    preservedElements: PreservedElement[],
   ): string {
     let restoredText = translatedText;
-    preservedElements.forEach(element => {
+    preservedElements.forEach((element) => {
       restoredText = restoredText.replace(element.placeholder, element.value);
     });
     return restoredText;
@@ -162,14 +171,14 @@ class TranslationService {
   private async translateWithDeepL(
     text: string,
     sourceLang: string,
-    targetLang: string
+    targetLang: string,
   ): Promise<string> {
     const apiKey = process.env.DEEPL_API_KEY;
-    
+
     const response = await fetch('https://api-free.deepl.com/v2/translate', {
       method: 'POST',
       headers: {
-        'Authorization': `DeepL-Auth-Key ${apiKey}`,
+        Authorization: `DeepL-Auth-Key ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -180,7 +189,7 @@ class TranslationService {
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as any;
     return data.translations[0].text;
   }
 
@@ -190,10 +199,10 @@ class TranslationService {
   private async translateWithGoogle(
     text: string,
     sourceLang: string,
-    targetLang: string
+    targetLang: string,
   ): Promise<string> {
     const apiKey = process.env.GOOGLE_TRANSLATE_API_KEY;
-    
+
     const response = await fetch(
       `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`,
       {
@@ -205,10 +214,10 @@ class TranslationService {
           target: targetLang,
           format: 'text',
         }),
-      }
+      },
     );
 
-    const data = await response.json();
+    const data = await response.json() as any;
     return data.data.translations[0].translatedText;
   }
 
@@ -229,7 +238,7 @@ class TranslationService {
    * Get language name
    */
   private getLanguageName(code: string): string {
-    const language = this.LANGUAGES.find(lang => lang.code === code);
+    const language = this.LANGUAGES.find((lang) => lang.code === code);
     return language?.name || code.toUpperCase();
   }
 

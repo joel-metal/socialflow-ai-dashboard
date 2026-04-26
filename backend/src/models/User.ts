@@ -27,4 +27,7 @@ export const UserStore = {
     users.set(id, updated);
     return updated;
   },
+
+  /** Clear all users — intended for test teardown only. */
+  clear: (): void => users.clear(),
 };

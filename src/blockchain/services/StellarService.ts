@@ -20,10 +20,10 @@ export class StellarService {
   // Stream cleanup tracking
   private activeStreams: Array<() => void> = [];
 
-  constructor(initialConfig: NetworkConfig = DEFAULT_NETWORK) {
+  constructor(initialConfig: NetworkConfig = DEFAULT_NETWORK, redisClient?: any) {
     this.config = initialConfig;
     this.pool = this.initializePool(this.config.horizonUrl);
-    this.offlineQueue = new OfflineQueue();
+    this.offlineQueue = new OfflineQueue(redisClient);
   }
 
   // --- 2.2 Connection Management ---

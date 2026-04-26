@@ -1,13 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = () => process.env.JWT_SECRET ?? 'change-me-in-production';
+import { AuthBlacklistService } from '../services/AuthBlacklistService';
+import { config } from '../config/config';
 
 export interface AuthRequest extends Request {
   userId?: string;
+  activeOrgId?: string;
 }
 
-export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): void {
+export async function authMiddleware(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     res.status(401).json({ message: 'Missing or malformed Authorization header' });
@@ -15,11 +20,20 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
   }
 
   const token = authHeader.slice(7);
+  let payload: jwt.JwtPayload;
   try {
-    const payload = jwt.verify(token, JWT_SECRET()) as jwt.JwtPayload;
-    req.userId = payload.sub as string;
-    next();
+    payload = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
   } catch {
     res.status(401).json({ message: 'Invalid or expired access token' });
+    return;
   }
+
+  const tokenKey = AuthBlacklistService.keyFromPayload(payload);
+  if (await AuthBlacklistService.isBlacklisted(tokenKey)) {
+    res.status(401).json({ message: 'Token has been revoked' });
+    return;
+  }
+
+  req.userId = payload.sub as string;
+  next();
 }

@@ -40,12 +40,12 @@ export const retryFailedJobs = async (
 
   try {
     const jobs = options.jobId
-      ? [await queue.getJob(options.jobId)].filter((job): job is NonNullable<typeof job> => Boolean(job))
+      ? [await queue.getJob(options.jobId)].filter((job): job is NonNullable<typeof job> =>
+          Boolean(job),
+        )
       : await queue.getFailed(0, Math.max(options.limit - 1, 0));
 
-    const failedJobs = options.jobId
-      ? jobs.filter((job) => job.failedReason !== undefined)
-      : jobs;
+    const failedJobs = options.jobId ? jobs.filter((job) => job.failedReason !== undefined) : jobs;
 
     logger.info('Loaded failed jobs for retry', {
       queueName: options.queueName,

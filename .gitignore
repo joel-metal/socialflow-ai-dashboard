@@ -8,7 +8,8 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # Dependencies
-node_modules
+node_modules/
+package-lock.json/
 
 # Build outputs
 dist
@@ -32,6 +33,9 @@ coverage
 # Test results
 test-results
 
+# Test snapshots
+**/__snapshots__/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -51,6 +55,10 @@ task.md
 coverage
 .nyc_output
 *.lcov
+
+# Prisma
+prisma/dev.db
+prisma/dev.db-journal
 
 # Uploads
 uploads/

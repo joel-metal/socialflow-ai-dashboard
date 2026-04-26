@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-[#030303] text-white;
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+}
+
+@layer components {
+  .glass {
+    @apply bg-dark-surface backdrop-blur-xl border border-dark-border shadow-2xl;
+    background-image: radial-gradient(circle at top left, rgba(255, 255, 255, 0.05), transparent 40%);
+  }
+  
+  .glass-card {
+    @apply glass rounded-2xl overflow-hidden transition-all duration-300;
+  }
+  
+  .glass-card:hover {
+    @apply border-white/20 -translate-y-1;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  }
+  
+  .glow-text {
+    @apply drop-shadow-[0_0_8px_rgba(59,130,246,0.5)];
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-dark-border rounded-full hover:bg-gray-subtext/50;
+}
+
+/* Animated background glow */
+.bg-glow {
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at center, #1e1b4b 0%, transparent 40%);
+  animation: rotate 60s linear infinite;
+  z-index: -1;
+  opacity: 0.3;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.layout-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+@media (max-width: 768px) {
+  .layout-grid {
+    grid-template-columns: 1fr;
+  }
+}

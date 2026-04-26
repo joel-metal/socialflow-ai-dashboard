@@ -1,0 +1,184 @@
+
+> socialflow-ai-dashboard@1.0.0 build
+> tsc && npx vite build
+
+backend/src/__tests__/database/dbClient.ts(20,5): error TS2322: Type 'string' is not assignable to type 'never'.
+backend/src/__tests__/database/dbClient.ts(23,10): error TS2339: Property '$use' does not exist on type 'PrismaClient<{ datasourceUrl: string; log: never[]; }, never, DefaultArgs>'.
+backend/src/modules/auth/controllers/auth.ts(5,27): error TS2307: Cannot find module '../models/User' or its corresponding type declarations.
+backend/src/modules/auth/controllers/auth.ts(6,29): error TS2307: Cannot find module '../services/AuditLogger' or its corresponding type declarations.
+backend/src/modules/auth/controllers/auth.ts(7,24): error TS2307: Cannot find module '../../config/config' or its corresponding type declarations.
+backend/src/modules/auth/controllers/auth.ts(98,51): error TS7006: Parameter 't' implicitly has an 'any' type.
+backend/src/modules/auth/controllers/auth.ts(118,49): error TS7006: Parameter 't' implicitly has an 'any' type.
+backend/src/modules/auth/routes.ts(2,50): error TS2307: Cannot find module '../controllers/auth' or its corresponding type declarations.
+backend/src/modules/auth/routes.ts(3,26): error TS2307: Cannot find module '../middleware/validate' or its corresponding type declarations.
+backend/src/modules/auth/routes.ts(4,55): error TS2307: Cannot find module '../schemas/auth' or its corresponding type declarations.
+backend/src/modules/billing/routes.ts(3,45): error TS2307: Cannot find module '../middleware/authMiddleware' or its corresponding type declarations.
+backend/src/modules/billing/routes.ts(4,26): error TS2307: Cannot find module '../middleware/validate' or its corresponding type declarations.
+backend/src/modules/billing/routes.ts(5,32): error TS2307: Cannot find module '../services/BillingService' or its corresponding type declarations.
+backend/src/modules/billing/routes.ts(6,51): error TS2307: Cannot find module '../models/Subscription' or its corresponding type declarations.
+backend/src/modules/billing/routes.ts(7,27): error TS2307: Cannot find module '../models/User' or its corresponding type declarations.
+backend/src/modules/billing/routes.ts(8,30): error TS2307: Cannot find module '../lib/logger' or its corresponding type declarations.
+backend/src/modules/billing/services/BillingService.ts(3,30): error TS2307: Cannot find module '../lib/logger' or its corresponding type declarations.
+backend/src/modules/billing/services/BillingService.ts(12,8): error TS2307: Cannot find module '../models/Subscription' or its corresponding type declarations.
+backend/src/modules/content/index.ts(1,10): error TS2724: '"./services/VideoService"' has no exported member named 'VideoService'. Did you mean 'videoService'?
+backend/src/modules/content/index.ts(2,10): error TS2724: '"./services/TranslationService"' has no exported member named 'TranslationService'. Did you mean 'translationService'?
+backend/src/modules/content/index.ts(3,10): error TS2724: '"./services/TTSService"' has no exported member named 'TTSService'. Did you mean 'ttsService'?
+backend/src/modules/content/routes.translation.ts(2,36): error TS2307: Cannot find module '../services/TranslationService' or its corresponding type declarations.
+backend/src/modules/content/routes.translation.ts(88,58): error TS7006: Parameter 'l' implicitly has an 'any' type.
+backend/src/modules/content/routes.translation.ts(155,68): error TS7006: Parameter 'l' implicitly has an 'any' type.
+backend/src/modules/content/routes.tts.ts(2,32): error TS2307: Cannot find module '../middleware/authMiddleware' or its corresponding type declarations.
+backend/src/modules/content/routes.tts.ts(3,26): error TS2307: Cannot find module '../middleware/validate' or its corresponding type declarations.
+backend/src/modules/content/routes.tts.ts(4,36): error TS2307: Cannot find module '../schemas/tts' or its corresponding type declarations.
+backend/src/modules/content/routes.tts.ts(5,80): error TS2307: Cannot find module '../controllers/tts' or its corresponding type declarations.
+backend/src/modules/content/routes.video.ts(4,30): error TS2307: Cannot find module '../services/VideoService' or its corresponding type declarations.
+backend/src/modules/content/routes.video.ts(5,28): error TS2307: Cannot find module '../queues/VideoQueue' or its corresponding type declarations.
+backend/src/modules/content/routes.video.ts(6,36): error TS2307: Cannot find module '../services/VideoHealthService' or its corresponding type declarations.
+backend/src/modules/content/services/TTSService.ts(4,30): error TS2307: Cannot find module '../lib/logger' or its corresponding type declarations.
+backend/src/modules/content/services/TTSService.ts(5,26): error TS2307: Cannot find module '../lib/eventBus' or its corresponding type declarations.
+backend/src/modules/content/services/TTSService.ts(6,55): error TS2307: Cannot find module '../lib/errors' or its corresponding type declarations.
+backend/src/modules/content/services/TTSService.ts(7,27): error TS2307: Cannot find module '../config/tts.config' or its corresponding type declarations.
+backend/src/modules/content/services/TTSService.ts(8,29): error TS2307: Cannot find module './AudioMerger' or its corresponding type declarations.
+backend/src/modules/content/services/TTSService.ts(17,8): error TS2307: Cannot find module '../types/tts' or its corresponding type declarations.
+backend/src/modules/content/services/TTSService.ts(67,48): error TS7006: Parameter 'v' implicitly has an 'any' type.
+backend/src/modules/content/services/VideoService.ts(10,8): error TS2307: Cannot find module '../types/video' or its corresponding type declarations.
+backend/src/modules/content/services/VideoService.ts(12,30): error TS2307: Cannot find module '../lib/logger' or its corresponding type declarations.
+backend/src/modules/content/services/VideoService.ts(13,26): error TS2307: Cannot find module '../lib/eventBus' or its corresponding type declarations.
+backend/src/modules/health/routes.ts(7,8): error TS2307: Cannot find module '../services/serviceFactory' or its corresponding type declarations.
+backend/src/modules/health/services/alertConfigService.ts(2,22): error TS2305: Module '"inversify"' has no exported member 'singleton'.
+backend/src/modules/health/services/alertConfigService.ts(3,30): error TS2307: Cannot find module '../lib/logger' or its corresponding type declarations.
+backend/src/modules/health/services/healthMonitor.ts(4,10): error TS2724: '"./alertConfigService"' has no exported member named 'alertConfigService'. Did you mean 'AlertConfigService'?
+backend/src/modules/health/services/healthMonitor.ts(5,23): error TS2307: Cannot find module '../config/inversify.config' or its corresponding type declarations.
+backend/src/modules/health/services/healthMonitor.ts(21,15): error TS1206: Decorators are not valid here.
+backend/src/modules/health/services/healthService.ts(4,23): error TS2307: Cannot find module '../config/inversify.config' or its corresponding type declarations.
+backend/src/modules/health/services/healthService.ts(11,15): error TS1206: Decorators are not valid here.
+backend/src/modules/health/services/notificationProvider.ts(3,30): error TS2307: Cannot find module '../lib/logger' or its corresponding type declarations.
+backend/src/modules/organization/controllers/organization.ts(3,24): error TS2307: Cannot find module '../lib/prisma' or its corresponding type declarations.
+backend/src/modules/organization/controllers/organization.ts(4,29): error TS2307: Cannot find module '../middleware/authMiddleware' or its corresponding type declarations.
+backend/src/modules/organization/routes.roles.ts(3,45): error TS2307: Cannot find module '../middleware/authMiddleware' or its corresponding type declarations.
+backend/src/modules/organization/routes.roles.ts(4,33): error TS2307: Cannot find module '../middleware/checkPermission' or its corresponding type declarations.
+backend/src/modules/organization/routes.roles.ts(5,26): error TS2307: Cannot find module '../middleware/validate' or its corresponding type declarations.
+backend/src/modules/organization/routes.roles.ts(6,57): error TS2307: Cannot find module '../models/Role' or its corresponding type declarations.
+backend/src/modules/organization/routes.roles.ts(7,27): error TS2307: Cannot find module '../models/User' or its corresponding type declarations.
+backend/src/modules/organization/routes.ts(2,32): error TS2307: Cannot find module '../middleware/authMiddleware' or its corresponding type declarations.
+backend/src/modules/organization/routes.ts(10,8): error TS2307: Cannot find module '../controllers/organization' or its corresponding type declarations.
+backend/src/modules/social/index.ts(1,10): error TS2724: '"./services/TwitterService"' has no exported member named 'TwitterService'. Did you mean 'twitterService'?
+backend/src/modules/social/index.ts(2,10): error TS2724: '"./services/YouTubeService"' has no exported member named 'YouTubeService'. Did you mean 'youTubeService'?
+backend/src/modules/social/index.ts(3,10): error TS2724: '"./services/FacebookService"' has no exported member named 'FacebookService'. Did you mean 'facebookService'?
+backend/src/modules/social/routes.facebook.ts(2,54): error TS2307: Cannot find module '../services/FacebookService' or its corresponding type declarations.
+backend/src/modules/social/routes.facebook.ts(3,30): error TS2307: Cannot find module '../lib/logger' or its corresponding type declarations.
+backend/src/modules/social/routes.facebook.ts(49,25): error TS7006: Parameter 'page' implicitly has an 'any' type.
+backend/src/modules/social/routes.facebook.ts(76,25): error TS7006: Parameter 'page' implicitly has an 'any' type.
+backend/src/modules/social/routes.youtube.ts(2,32): error TS2307: Cannot find module '../services/YouTubeService' or its corresponding type declarations.
+backend/src/modules/social/routes.youtube.ts(3,36): error TS2307: Cannot find module '../jobs/youtubeSyncJob' or its corresponding type declarations.
+backend/src/modules/social/routes.youtube.ts(4,30): error TS2307: Cannot find module '../lib/logger' or its corresponding type declarations.
+backend/src/modules/social/services/TwitterService.ts(1,39): error TS2307: Cannot find module './CircuitBreakerService' or its corresponding type declarations.
+backend/src/modules/webhook/index.ts(1,10): error TS2305: Module '"./services/WebhookDispatcher"' has no exported member 'WebhookDispatcher'.
+backend/src/modules/webhook/routes.ts(3,32): error TS2307: Cannot find module '../middleware/authMiddleware' or its corresponding type declarations.
+backend/src/modules/webhook/routes.ts(4,26): error TS2307: Cannot find module '../middleware/validate' or its corresponding type declarations.
+backend/src/modules/webhook/routes.ts(5,77): error TS2307: Cannot find module '../schemas/webhooks' or its corresponding type declarations.
+backend/src/modules/webhook/routes.ts(15,8): error TS2307: Cannot find module '../controllers/webhooks' or its corresponding type declarations.
+backend/src/modules/webhook/services/WebhookDispatcher.ts(2,24): error TS2307: Cannot find module '../lib/prisma' or its corresponding type declarations.
+backend/src/modules/webhook/services/WebhookDispatcher.ts(3,30): error TS2307: Cannot find module '../lib/logger' or its corresponding type declarations.
+backend/src/modules/webhook/services/WebhookDispatcher.ts(4,34): error TS2307: Cannot find module '../schemas/webhooks' or its corresponding type declarations.
+backend/src/modules/webhook/services/WebhookDispatcher.ts(57,30): error TS7006: Parameter 'sub' implicitly has an 'any' type.
+backend/src/modules/webhook/services/WebhookDispatcher.ts(172,14): error TS7006: Parameter 'd' implicitly has an 'any' type.
+backend/src/services/healthMonitor.ts(23,5): error TS1206: Decorators are not valid here.
+backend/src/services/healthMonitor.ts(24,5): error TS1206: Decorators are not valid here.
+backend/src/services/healthService.ts(37,15): error TS1206: Decorators are not valid here.
+backend/src/services/TikTokService.ts(293,7): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(input: string | URL | Request, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Type 'Buffer<ArrayBufferLike>' is not assignable to type 'BodyInit | null | undefined'.
+      Type 'Buffer<ArrayBufferLike>' is missing the following properties from type 'URLSearchParams': size, append, delete, get, and 2 more.
+  Overload 2 of 2, '(input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Type 'Buffer<ArrayBufferLike>' is not assignable to type 'BodyInit | null | undefined'.
+      Type 'Buffer<ArrayBufferLike>' is missing the following properties from type 'URLSearchParams': size, append, delete, get, and 2 more.
+backend/src/shared/lib/logger.ts(45,55): error TS2698: Spread types may only be created from object types.
+backend/src/shared/lib/logger.ts(49,55): error TS2698: Spread types may only be created from object types.
+backend/src/shared/lib/logger.ts(53,56): error TS2698: Spread types may only be created from object types.
+backend/src/shared/lib/prisma.ts(14,37): error TS2353: Object literal may only specify known properties, and 'datasourceUrl' does not exist in type 'Subset<PrismaClientOptions, PrismaClientOptions>'.
+backend/src/shared/lib/prisma.ts(17,10): error TS2339: Property '$use' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+backend/src/shared/lib/prisma.ts(21,10): error TS2339: Property '$use' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+backend/src/shared/lib/prisma.ts(21,22): error TS7006: Parameter 'params' implicitly has an 'any' type.
+backend/src/shared/lib/prisma.ts(21,30): error TS7006: Parameter 'next' implicitly has an 'any' type.
+backend/src/shared/lib/prisma.ts(48,10): error TS2339: Property '$use' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+backend/src/shared/lib/prisma.ts(48,22): error TS7006: Parameter 'params' implicitly has an 'any' type.
+backend/src/shared/lib/prisma.ts(48,30): error TS7006: Parameter 'next' implicitly has an 'any' type.
+backend/src/shared/middleware/audit.ts(3,29): error TS2307: Cannot find module '../services/AuditLogger' or its corresponding type declarations.
+backend/src/shared/middleware/audit.ts(4,29): error TS2307: Cannot find module '../models/AuditLog' or its corresponding type declarations.
+backend/src/shared/middleware/checkPermission.ts(3,39): error TS2307: Cannot find module '../models/Role' or its corresponding type declarations.
+backend/src/shared/middleware/requireCredits.ts(3,32): error TS2307: Cannot find module '../services/BillingService' or its corresponding type declarations.
+backend/src/shared/middleware/requireCredits.ts(4,30): error TS2307: Cannot find module '../models/Subscription' or its corresponding type declarations.
+backend/src/shared/utils/BaseRepository.ts(87,29): error TS2339: Property 'subscription' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+backend/src/shared/utils/BaseRepository.ts(93,29): error TS2339: Property 'subscription' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+backend/src/shared/utils/BaseRepository.ts(99,29): error TS2339: Property 'subscription' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+backend/src/shared/utils/BaseRepository.ts(106,29): error TS2339: Property 'subscription' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+backend/src/shared/utils/UnitOfWork.ts(54,12): error TS2339: Property 'debug' does not exist on type 'Logger'.
+backend/src/shared/utils/UnitOfWork.ts(58,12): error TS2339: Property 'debug' does not exist on type 'Logger'.
+backend/src/shared/utils/UnitOfWork.ts(71,12): error TS2339: Property 'debug' does not exist on type 'Logger'.
+backend/src/shared/utils/UnitOfWork.ts(89,12): error TS2339: Property 'debug' does not exist on type 'Logger'.
+backend/src/shared/utils/UnitOfWorkExample.ts(36,17): error TS2339: Property 'subscription' does not exist on type 'TransactionClient'.
+backend/src/shared/utils/UnitOfWorkExample.ts(55,13): error TS2322: Type 'Prisma__OrganizationClient<{ id: string; name: string; createdAt: Date; slug: string; }, never, DefaultArgs, PrismaClientOptions>' is not assignable to type 'Promise<{ id: string; role: string; email: string; passwordHash: string; createdAt: Date; refreshTokens: string[]; lastPasswordChange: Date; deletedAt: Date | null; }>'.
+  Types of property 'then' are incompatible.
+    Type '<TResult1 = { id: string; name: string; createdAt: Date; slug: string; }, TResult2 = never>(onfulfilled?: ((value: { id: string; name: string; createdAt: Date; slug: string; }) => TResult1 | PromiseLike<TResult1>) | null | undefined, onrejected?: ((reason: any) => TResult2 | PromiseLike<...>) | ... 1 more ... | unde...' is not assignable to type '<TResult1 = { id: string; role: string; email: string; passwordHash: string; createdAt: Date; refreshTokens: string[]; lastPasswordChange: Date; deletedAt: Date | null; }, TResult2 = never>(onfulfilled?: ((value: { ...; }) => TResult1 | PromiseLike<...>) | null | undefined, onrejected?: ((reason: any) => TResult2 | ...'.
+      Types of parameters 'onfulfilled' and 'onfulfilled' are incompatible.
+        Types of parameters 'value' and 'value' are incompatible.
+          Type '{ id: string; name: string; createdAt: Date; slug: string; }' is missing the following properties from type '{ id: string; role: string; email: string; passwordHash: string; createdAt: Date; refreshTokens: string[]; lastPasswordChange: Date; deletedAt: Date | null; }': role, email, passwordHash, refreshTokens, and 2 more.
+backend/src/shared/utils/UnitOfWorkExample.ts(67,3): error TS1241: Unable to resolve signature of method decorator when called as an expression.
+  The runtime will invoke the decorator with 2 arguments, but the decorator expects 3.
+backend/src/shared/utils/UnitOfWorkExample.ts(67,4): error TS1270: Decorator function return type 'TypedPropertyDescriptor<(...args: any[]) => Promise<any>>' is not assignable to type 'void | ((userData: any, subData: any, tx?: TransactionClient | undefined) => Promise<{ id: string; role: string; email: string; passwordHash: string; createdAt: Date; refreshTokens: string[]; lastPasswordChange: Date; deletedAt: Date | null; }>)'.
+backend/src/shared/utils/UnitOfWorkExample.ts(71,18): error TS2339: Property 'subscription' does not exist on type 'TransactionClient'.
+backend/src/shared/utils/UnitOfWorkExample.ts(76,3): error TS1241: Unable to resolve signature of method decorator when called as an expression.
+  The runtime will invoke the decorator with 2 arguments, but the decorator expects 3.
+backend/src/shared/utils/UnitOfWorkExample.ts(76,4): error TS1270: Decorator function return type 'TypedPropertyDescriptor<(...args: any[]) => Promise<any>>' is not assignable to type 'void | ((userData: any, orgData: any, subData: any, tx?: TransactionClient | undefined) => Promise<{ id: string; role: string; email: string; passwordHash: string; createdAt: Date; refreshTokens: string[]; lastPasswordChange: Date; deletedAt: Date | null; }>)'.
+backend/src/tests/SocketService.test.ts(8,1): error TS2304: Cannot find name 'vi'.
+backend/src/tests/SocketService.test.ts(9,18): error TS2304: Cannot find name 'vi'.
+backend/src/tests/SocketService.test.ts(11,1): error TS2304: Cannot find name 'vi'.
+src/blockchain/hooks/useSorobanContract.ts(3,43): error TS2307: Cannot find module '../services/WalletService' or its corresponding type declarations.
+src/blockchain/hooks/useSorobanContract.ts(4,60): error TS2307: Cannot find module '../types/soroban' or its corresponding type declarations.
+src/blockchain/services/SmartContractService.ts(2,5): error TS2724: '"@stellar/stellar-sdk"' has no exported member named 'SorobanRpc'. Did you mean 'Soroban'?
+src/blockchain/services/SmartContractService.ts(21,8): error TS2307: Cannot find module '../types/soroban' or its corresponding type declarations.
+src/blockchain/services/SmartContractService.ts(22,51): error TS2307: Cannot find module '../config/soroban.config' or its corresponding type declarations.
+src/blockchain/services/SmartContractService.ts(292,62): error TS2554: Expected 0 arguments, but got 1.
+src/blockchain/services/SmartContractService.ts(363,61): error TS2345: Argument of type '{ wasmHash: Buffer<ArrayBufferLike>; salt: any; }' is not assignable to parameter of type 'CreateCustomContract'.
+  Property 'address' is missing in type '{ wasmHash: Buffer<ArrayBufferLike>; salt: any; }' but required in type 'CreateCustomContract'.
+src/blockchain/services/SmartContractService.ts(434,58): error TS2554: Expected 0 arguments, but got 1.
+src/blockchain/services/StellarService.ts(4,48): error TS2307: Cannot find module '../config/networks' or its corresponding type declarations.
+src/blockchain/services/StellarService.ts(5,30): error TS2307: Cannot find module './OfflineQueue.ts' or its corresponding type declarations.
+src/components/CreatePostWithReachAnalysis.tsx(2,22): error TS2307: Cannot find module '@/components/ui/Card' or its corresponding type declarations.
+src/components/CreatePostWithReachAnalysis.tsx(3,43): error TS2307: Cannot find module '@/types' or its corresponding type declarations.
+src/components/CreatePostWithReachAnalysis.tsx(5,36): error TS2307: Cannot find module '@/hooks/usePredictiveReach' or its corresponding type declarations.
+src/components/CreatePostWithReachAnalysis.tsx(6,35): error TS2307: Cannot find module '@/types/predictive' or its corresponding type declarations.
+src/components/CreatePostWithReachAnalysis.tsx(89,19): error TS2322: Type 'unknown' is not assignable to type 'Key | null | undefined'.
+src/components/CreatePostWithReachAnalysis.tsx(103,20): error TS18046: 'platform' is of type 'unknown'.
+src/components/CreatePostWithReachAnalysis.tsx(103,55): error TS18046: 'platform' is of type 'unknown'.
+src/components/dashboard/PredictiveReachDashboard.tsx(30,5): error TS2353: Object literal may only specify known properties, and 'lastTraining' does not exist in type 'MLModelMetrics | (() => MLModelMetrics)'.
+src/components/dashboard/SettingsView.tsx(2,10): error TS2614: Module '"../TwoFactorSetup"' has no exported member 'TwoFactorSetup'. Did you mean to use 'import TwoFactorSetup from "../TwoFactorSetup"' instead?
+src/components/dashboard/SettingsView.tsx(3,10): error TS2614: Module '"../WebhookManager"' has no exported member 'WebhookManager'. Did you mean to use 'import WebhookManager from "../WebhookManager"' instead?
+src/main.tsx(3,17): error TS5097: An import path can only end with a '.tsx' extension when 'allowImportingTsExtensions' is enabled.
+src/main.tsx(4,8): error TS2882: Cannot find module or type declarations for side-effect import of './index.css'.
+src/services/__tests__/PredictiveService.test.ts(115,50): error TS2339: Property 'comparePosts' does not exist on type 'PredictiveService'.
+src/services/__tests__/PredictiveService.test.ts(126,41): error TS2554: Expected 1 arguments, but got 0.
+src/services/__tests__/PredictiveService.test.ts(128,22): error TS2339: Property 'accuracy' does not exist on type 'Promise<{ metrics: MLModelMetrics; }>'.
+src/services/__tests__/PredictiveService.test.ts(129,22): error TS2339: Property 'accuracy' does not exist on type 'Promise<{ metrics: MLModelMetrics; }>'.
+src/services/__tests__/PredictiveService.test.ts(130,22): error TS2339: Property 'version' does not exist on type 'Promise<{ metrics: MLModelMetrics; }>'.
+src/services/__tests__/PredictiveService.test.ts(131,22): error TS2339: Property 'sampleSize' does not exist on type 'Promise<{ metrics: MLModelMetrics; }>'.
+src/services/__tests__/PredictiveService.test.ts(132,22): error TS2339: Property 'lastTrainedAt' does not exist on type 'Promise<{ metrics: MLModelMetrics; }>'.
+src/services/__tests__/PredictiveService.test.ts(138,48): error TS2554: Expected 1 arguments, but got 0.
+src/services/__tests__/PredictiveService.test.ts(140,25): error TS2339: Property 'updateHistoricalData' does not exist on type 'PredictiveService'.
+src/services/__tests__/PredictiveService.test.ts(149,48): error TS2554: Expected 1 arguments, but got 0.
+src/services/__tests__/PredictiveService.test.ts(150,29): error TS2339: Property 'version' does not exist on type 'Promise<{ metrics: MLModelMetrics; }>'.
+src/services/__tests__/PredictiveService.test.ts(150,58): error TS2339: Property 'version' does not exist on type 'Promise<{ metrics: MLModelMetrics; }>'.
+src/services/__tests__/TranslationService.test.ts(2,36): error TS2307: Cannot find module '../../types/translation' or its corresponding type declarations.
+src/services/TranslationService.ts(1,10): error TS2305: Module '"@google/genai"' has no exported member 'GoogleGenerativeAI'.
+src/services/TranslationService.ts(61,20): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', 'node18', 'node20', or 'nodenext'.
+src/services/TranslationService.ts(61,32): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/services/TranslationService.ts(358,25): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', 'node18', 'node20', or 'nodenext'.
+src/services/TranslationService.ts(358,37): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/services/TranslationService.ts(368,26): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', 'node18', 'node20', or 'nodenext'.
+src/services/TranslationService.ts(368,38): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/services/TranslationService.ts(418,20): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', 'node18', 'node20', or 'nodenext'.
+src/services/TranslationService.ts(418,32): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/services/TranslationService.ts(459,20): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', 'node18', 'node20', or 'nodenext'.
+src/services/TranslationService.ts(459,32): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/services/twoFactorService.ts(98,48): error TS2554: Expected 0 arguments, but got 1.
+src/tracing.ts(18,3): error TS2724: '"@opentelemetry/semantic-conventions"' has no exported member named 'ATTR_DEPLOYMENT_ENVIRONMENT_NAME'. Did you mean 'SEMRESATTRS_DEPLOYMENT_ENVIRONMENT'?
