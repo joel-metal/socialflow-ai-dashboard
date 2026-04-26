@@ -7,10 +7,11 @@
  *   node -r ts-node/register src/workers/index.ts
  */
 import { Job, Worker } from 'bullmq';
-import { trace } from '@opentelemetry/api';
+import { trace, context, SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { queueManager } from '../queues/queueManager';
 import { AI_QUEUE_NAME, AIJobData, AIJobType } from '../queues/aiQueue';
 import { SOCIAL_QUEUE_NAME, SocialJobData, SocialJobType } from '../queues/socialQueue';
+import { restoreTraceContext } from '../lib/traceContext';
 import { aiService } from '../services/AIService';
 import { translationService } from '../services/TranslationService';
 import { prisma } from '../lib/prisma';
@@ -26,6 +27,8 @@ import { billingService } from '../services/BillingService';
 
 const logger = createLogger('workers');
 
+const workerTracer = trace.getTracer('socialflow-workers');
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function currentTraceId(): string | undefined {
@@ -33,6 +36,52 @@ function currentTraceId(): string | undefined {
   if (!span) return undefined;
   const id = span.spanContext().traceId;
   return id === '00000000000000000000000000000000' ? undefined : id;
+}
+
+/**
+ * Run `fn` inside a child span that is linked to the originating HTTP request
+ * span via the W3C trace context stored in the job payload.
+ *
+ * The span is named `<queue>/<jobType>` and carries standard job attributes.
+ * On success it is marked OK; on failure it is marked ERROR and the exception
+ * is recorded before the error is re-thrown so BullMQ can handle retries.
+ */
+async function withJobSpan<T>(
+  job: Job<AIJobData | SocialJobData>,
+  queueName: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  // Restore the parent context from the serialised trace context in the payload
+  const parentCtx = restoreTraceContext(job.data.traceContext);
+
+  return context.with(parentCtx, async () => {
+    const span = workerTracer.startSpan(`${queueName}/${job.data.type}`, {
+      kind: SpanKind.CONSUMER,
+      attributes: {
+        'messaging.system': 'bullmq',
+        'messaging.destination': queueName,
+        'messaging.operation': 'process',
+        'job.id': job.id ?? '',
+        'job.type': job.data.type,
+        'job.attempts_made': job.attemptsMade,
+        'enduser.id': job.data.userId,
+      },
+    });
+
+    return context.with(trace.setSpan(context.active(), span), async () => {
+      try {
+        const result = await fn();
+        span.setStatus({ code: SpanStatusCode.OK });
+        return result;
+      } catch (err) {
+        span.recordException(err as Error);
+        span.setStatus({ code: SpanStatusCode.ERROR, message: (err as Error).message });
+        throw err;
+      } finally {
+        span.end();
+      }
+    });
+  });
 }
 
 async function persistAIResult(
@@ -308,7 +357,7 @@ function createAIWorker(): Worker<AIJobData> {
       if (!processor) {
         throw new Error(`Unknown AI job type: ${job.data.type}`);
       }
-      return processor(job);
+      return withJobSpan(job, AI_QUEUE_NAME, () => processor(job));
     },
     { concurrency: 5 }, // AI calls are I/O-bound; 5 concurrent is safe
   ) as Worker<AIJobData>;
@@ -336,7 +385,7 @@ function createSocialWorker(): Worker<SocialJobData> {
       if (!processor) {
         throw new Error(`Unknown social job type: ${job.data.type}`);
       }
-      return processor(job);
+      return withJobSpan(job, SOCIAL_QUEUE_NAME, () => processor(job));
     },
     { concurrency: 3 }, // Lower concurrency to respect platform rate limits
   ) as Worker<SocialJobData>;

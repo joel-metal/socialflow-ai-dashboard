@@ -40,9 +40,10 @@ jest.mock('../workers/index', () => ({ startWorkers: jest.fn() }));
 jest.mock('../jobs/tiktokVideoJob', () => ({ startTikTokVideoWorker: jest.fn() }));
 jest.mock('../queues/twitterWebhookQueue', () => ({ startTwitterWebhookWorker: jest.fn(() => null) }));
 jest.mock('../monitoring/healthMonitoringInstance', () => ({ initializeHealthMonitoring: jest.fn() }));
-jest.mock('../services/SocketService', () => ({ SocketService: { initialize: jest.fn() } }));
+jest.mock('../services/SocketService', () => ({ SocketService: { getInstance: jest.fn(() => ({ initialize: jest.fn() })), initialize: jest.fn() } }));
 jest.mock('../services/SearchService', () => ({ initSearchIndex: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../app', () => ({
+  __esModule: true,
   default: {
     listen: jest.fn((_port: number, cb: () => void) => {
       cb();

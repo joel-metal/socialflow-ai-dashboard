@@ -58,6 +58,9 @@ function shouldCompress(req: Request, res: Response): boolean {
   // Respect the caller's explicit opt-out
   if (req.headers['x-no-compression']) return false;
 
+  // Skip re-compression of already-encoded responses
+  if (res.getHeader('Content-Encoding')) return false;
+
   const contentType = (res.getHeader('Content-Type') as string | undefined) ?? '';
 
   // Configurable deny list takes highest priority

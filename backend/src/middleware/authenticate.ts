@@ -17,7 +17,7 @@ export async function authenticate(
 ): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ message: 'Missing or malformed Authorization header' });
+    res.status(401).json({ message: 'Unauthorized' });
     return;
   }
 
@@ -26,13 +26,13 @@ export async function authenticate(
   try {
     payload = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
   } catch {
-    res.status(401).json({ message: 'Invalid or expired access token' });
+    res.status(401).json({ message: 'Unauthorized' });
     return;
   }
 
   const tokenKey = AuthBlacklistService.keyFromPayload(payload);
   if (await AuthBlacklistService.isBlacklisted(tokenKey)) {
-    res.status(401).json({ message: 'Token has been revoked' });
+    res.status(401).json({ message: 'Unauthorized' });
     return;
   }
 

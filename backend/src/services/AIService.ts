@@ -1,9 +1,12 @@
+import 'reflect-metadata';
+import { injectable, inject } from 'inversify';
 import { GoogleGenAI } from '@google/genai';
 import { trace, SpanStatusCode } from '@opentelemetry/api';
-import { circuitBreakerService } from './CircuitBreakerService';
+import { CircuitBreakerService, circuitBreakerService } from './CircuitBreakerService';
 import { eventBus } from '../lib/eventBus';
 import { createLogger } from '../lib/logger';
 import { billingService } from './BillingService';
+import { TYPES } from '../config/types';
 
 export interface GenerateContentResult {
   text: string;
@@ -20,11 +23,14 @@ const tracer = trace.getTracer('socialflow-ai');
  * Provides resilient AI operations with automatic failure handling
  * and fallback strategies.
  */
+@injectable()
 class AIService {
   private genAI: GoogleGenAI | null = null;
   private model: any = null;
 
-  constructor() {
+  constructor(
+    @inject(TYPES.CircuitBreakerService) private readonly circuitBreaker: CircuitBreakerService,
+  ) {
     this.initializeAI();
   }
 
@@ -86,7 +92,7 @@ class AIService {
     }
 
     try {
-      const result = await circuitBreakerService.execute(
+      const result = await this.circuitBreaker.execute(
         'ai',
         async () => {
           const res = await this.genAI!.models.generateContent({
@@ -238,8 +244,11 @@ Format as JSON: {"sentiment": "...", "topics": [...], "keywords": [...]}`;
    * Get circuit breaker status
    */
   public getCircuitStatus() {
-    return circuitBreakerService.getStats('ai');
+    return this.circuitBreaker.getStats('ai');
   }
 }
 
-export const aiService = new AIService();
+export { AIService };
+
+// Module-level singleton for non-DI consumers (routes, scripts, etc.)
+export const aiService = new AIService(circuitBreakerService);
