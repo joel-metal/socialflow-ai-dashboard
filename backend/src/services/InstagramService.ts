@@ -1,5 +1,6 @@
 import { circuitBreakerService } from './CircuitBreakerService';
 import { createLogger } from '../lib/logger';
+import { ServiceUnavailableError } from '../lib/errors';
 
 const logger = createLogger('instagram-service');
 
@@ -322,15 +323,18 @@ class InstagramService {
   /**
    * Step 2 — Poll container status until FINISHED (or error out).
    * Instagram requires this before publishing, especially for videos.
+   *
+   * Uses exponential backoff: delay = baseIntervalMs * 2^attempt (capped at 30 s).
+   * Throws ServiceUnavailableError after maxRetries attempts.
    */
   private async waitForContainer(
     igAccountId: string,
     containerId: string,
     accessToken: string,
-    maxAttempts = 20,
-    intervalMs = 5000,
+    maxRetries = 30,
+    baseIntervalMs = 2000,
   ): Promise<void> {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
       const params = new URLSearchParams({
         fields: 'status_code,status',
         access_token: accessToken,
@@ -352,15 +356,15 @@ class InstagramService {
         );
       }
 
-      logger.info('Waiting for Instagram container', {
-        containerId,
-        status,
-        attempt,
-      });
-      await new Promise((r) => setTimeout(r, intervalMs));
+      logger.info('Waiting for Instagram container', { containerId, status, attempt: attempt + 1, maxRetries });
+
+      const delay = Math.min(baseIntervalMs * 2 ** attempt, 30_000);
+      await new Promise((r) => setTimeout(r, delay));
     }
 
-    throw new Error(`Instagram container ${containerId} did not finish processing in time`);
+    throw new ServiceUnavailableError(
+      `Instagram container ${containerId} did not finish processing after ${maxRetries} attempts`,
+    );
   }
 
   /**
