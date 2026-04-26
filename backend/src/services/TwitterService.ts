@@ -39,7 +39,7 @@ export interface TwitterPostRequest {
  * Provides resilient Twitter operations with automatic failure handling.
  * Prevents cascading failures when Twitter API is down or rate-limited.
  */
-class TwitterService {
+export class TwitterService {
   private readonly API_BASE = 'https://api.twitter.com/2';
   private readonly bearerToken: string;
 
