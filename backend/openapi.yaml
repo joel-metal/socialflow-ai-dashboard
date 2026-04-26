@@ -1,0 +1,674 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SocialFlow AI Dashboard API",
+    "version": "1.0.0",
+    "description": "REST API for the SocialFlow AI Dashboard — social media scheduling, analytics, AI content tools, billing, and more."
+  },
+  "servers": [
+    { "url": "/api/v1", "description": "Current stable version" },
+    { "url": "/api",    "description": "Legacy alias (deprecated)" }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error":   { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "AuthTokens": {
+        "type": "object",
+        "required": ["accessToken", "refreshToken"],
+        "properties": {
+          "accessToken":  { "type": "string" },
+          "refreshToken": { "type": "string" }
+        }
+      },
+      "Credentials": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email":    { "type": "string", "format": "email" },
+          "password": { "type": "string", "minLength": 8 }
+        }
+      },
+      "RefreshTokenRequest": {
+        "type": "object",
+        "required": ["refreshToken"],
+        "properties": {
+          "refreshToken": { "type": "string" }
+        }
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "required": ["currentPassword", "newPassword"],
+        "properties": {
+          "currentPassword": { "type": "string" },
+          "newPassword":     { "type": "string", "minLength": 8 }
+        }
+      },
+      "Post": {
+        "type": "object",
+        "properties": {
+          "id":             { "type": "string", "format": "uuid" },
+          "content":        { "type": "string" },
+          "platform":       { "type": "string", "enum": ["twitter","linkedin","instagram","tiktok","facebook","youtube"] },
+          "organizationId": { "type": "string", "format": "uuid" },
+          "scheduledAt":    { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt":      { "type": "string", "format": "date-time" }
+        }
+      },
+      "Organization": {
+        "type": "object",
+        "properties": {
+          "id":        { "type": "string", "format": "uuid" },
+          "name":      { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "WebhookSubscription": {
+        "type": "object",
+        "properties": {
+          "id":        { "type": "string", "format": "uuid" },
+          "url":       { "type": "string", "format": "uri" },
+          "events":    { "type": "array", "items": { "type": "string" } },
+          "isActive":  { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "WebhookDelivery": {
+        "type": "object",
+        "properties": {
+          "id":            { "type": "string", "format": "uuid" },
+          "eventType":     { "type": "string" },
+          "status":        { "type": "string", "enum": ["pending","success","failed"] },
+          "attempts":      { "type": "integer" },
+          "responseStatus":{ "type": "integer", "nullable": true },
+          "errorMessage":  { "type": "string",  "nullable": true },
+          "createdAt":     { "type": "string", "format": "date-time" },
+          "nextRetryAt":   { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "VideoJob": {
+        "type": "object",
+        "properties": {
+          "jobId":      { "type": "string" },
+          "status":     { "type": "string", "enum": ["pending","processing","completed","failed","cancelled"] },
+          "progress":   { "type": "number", "minimum": 0, "maximum": 100 },
+          "outputPath": { "type": "string", "nullable": true },
+          "error":      { "type": "string", "nullable": true }
+        }
+      },
+      "Subscription": {
+        "type": "object",
+        "properties": {
+          "id":      { "type": "string" },
+          "userId":  { "type": "string" },
+          "plan":    { "type": "string" },
+          "credits": { "type": "number" },
+          "status":  { "type": "string" }
+        }
+      },
+      "PagedResponse": {
+        "type": "object",
+        "properties": {
+          "data":  { "type": "array", "items": {} },
+          "total": { "type": "integer" },
+          "page":  { "type": "integer" },
+          "limit": { "type": "integer" },
+          "pages": { "type": "integer" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a new user",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Credentials" } } }
+        },
+        "responses": {
+          "201": { "description": "User created — returns JWT tokens", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthTokens" } } } },
+          "400": { "description": "Validation error" },
+          "409": { "description": "Email already in use" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Authenticate and obtain JWT tokens",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Credentials" } } }
+        },
+        "responses": {
+          "200": { "description": "Successful login", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthTokens" } } } },
+          "400": { "description": "Validation error" },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Refresh access token using a refresh token",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RefreshTokenRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "New token pair issued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthTokens" } } } },
+          "401": { "description": "Invalid or expired refresh token" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Revoke a refresh token",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RefreshTokenRequest" } } }
+        },
+        "responses": {
+          "204": { "description": "Token revoked" },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/auth/change-password": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Change the authenticated user's password",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChangePasswordRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Password changed successfully" },
+          "400": { "description": "Validation error or wrong current password" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/ai/analyze-image": {
+      "post": {
+        "tags": ["AI"],
+        "summary": "Generate a social media caption from an image using AI",
+        "description": "Accepts a base64-encoded image or public URL and returns an AI-generated caption. Deducts ai:generate credits.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["imageData"],
+                "properties": {
+                  "imageData": { "type": "string", "description": "Base64-encoded image data or a public image URL" },
+                  "mimeType":  { "type": "string", "default": "image/jpeg" },
+                  "context":   { "type": "string", "description": "Optional prompt context to guide caption style/topic" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "AI-generated caption", "content": { "application/json": { "schema": { "type": "object", "properties": { "caption": { "type": "string" } } } } } },
+          "400": { "description": "imageData is required" },
+          "401": { "description": "Unauthorized" },
+          "402": { "description": "Insufficient credits" },
+          "422": { "description": "AI processing error" }
+        }
+      }
+    },
+    "/analytics": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Get aggregated analytics",
+        "parameters": [
+          { "in": "query", "name": "platform", "schema": { "type": "string", "enum": ["twitter","linkedin","instagram","tiktok"] } },
+          { "in": "query", "name": "from", "schema": { "type": "integer" }, "description": "Start of date range (Unix ms)" },
+          { "in": "query", "name": "to",   "schema": { "type": "integer" }, "description": "End of date range (Unix ms)" }
+        ],
+        "responses": {
+          "200": { "description": "Analytics filters acknowledged" },
+          "400": { "description": "Invalid query parameters" }
+        }
+      }
+    },
+    "/billing/provision": {
+      "post": {
+        "tags": ["Billing"],
+        "summary": "Provision a Stripe customer and free subscription for the authenticated user",
+        "responses": {
+          "201": { "description": "Subscription provisioned", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Subscription" } } } },
+          "404": { "description": "User not found" },
+          "502": { "description": "Stripe error" }
+        }
+      }
+    },
+    "/billing/subscription": {
+      "get": {
+        "tags": ["Billing"],
+        "summary": "Get the current user's subscription and credit balance",
+        "responses": {
+          "200": { "description": "Subscription details", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Subscription" } } } },
+          "404": { "description": "No subscription found" }
+        }
+      }
+    },
+    "/billing/credits": {
+      "get": {
+        "tags": ["Billing"],
+        "summary": "Get the current user's credit log",
+        "responses": {
+          "200": { "description": "Credit log entries" }
+        }
+      }
+    },
+    "/billing/checkout": {
+      "post": {
+        "tags": ["Billing"],
+        "summary": "Create a Stripe Checkout session for upgrading to a paid plan",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["priceId","successUrl","cancelUrl"],
+                "properties": {
+                  "priceId":    { "type": "string" },
+                  "successUrl": { "type": "string", "format": "uri" },
+                  "cancelUrl":  { "type": "string", "format": "uri" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Checkout session URL", "content": { "application/json": { "schema": { "type": "object", "properties": { "url": { "type": "string", "format": "uri" } } } } } },
+          "502": { "description": "Stripe error" }
+        }
+      }
+    },
+    "/billing/portal": {
+      "post": {
+        "tags": ["Billing"],
+        "summary": "Create a Stripe Customer Portal session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["returnUrl"],
+                "properties": { "returnUrl": { "type": "string", "format": "uri" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Portal session URL", "content": { "application/json": { "schema": { "type": "object", "properties": { "url": { "type": "string", "format": "uri" } } } } } },
+          "502": { "description": "Stripe error" }
+        }
+      }
+    },
+    "/billing/webhook": {
+      "post": {
+        "tags": ["Billing"],
+        "summary": "Stripe webhook receiver (raw body, HMAC-verified)",
+        "security": [],
+        "parameters": [
+          { "in": "header", "name": "stripe-signature", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } } }
+        },
+        "responses": {
+          "200": { "description": "Event received" },
+          "400": { "description": "Missing signature or invalid payload" }
+        }
+      }
+    },
+    "/webhooks": {
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "List all webhook subscriptions for the authenticated user",
+        "responses": {
+          "200": { "description": "Array of webhook subscriptions", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/WebhookSubscription" } } } } },
+          "401": { "description": "Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Create a new webhook subscription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["url","secret","events"],
+                "properties": {
+                  "url":    { "type": "string", "format": "uri" },
+                  "secret": { "type": "string", "minLength": 16 },
+                  "events": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Webhook created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WebhookSubscription" } } } },
+          "400": { "description": "Validation error" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/webhooks/{id}": {
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "Get a webhook subscription by ID",
+        "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Webhook subscription", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WebhookSubscription" } } } },
+          "404": { "description": "Not found" }
+        }
+      },
+      "patch": {
+        "tags": ["Webhooks"],
+        "summary": "Update a webhook subscription",
+        "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url":      { "type": "string", "format": "uri" },
+                  "secret":   { "type": "string", "minLength": 16 },
+                  "events":   { "type": "array", "items": { "type": "string" } },
+                  "isActive": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated webhook" },
+          "404": { "description": "Not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Webhooks"],
+        "summary": "Delete a webhook subscription",
+        "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "204": { "description": "Deleted" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/webhooks/{id}/test": {
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Send a test event to a webhook",
+        "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["eventType"],
+                "properties": { "eventType": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Test delivery result" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/webhooks/{id}/deliveries": {
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "List delivery attempts for a webhook",
+        "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Array of delivery records", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/WebhookDelivery" } } } } },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/webhooks/{id}/deliveries/{deliveryId}/replay": {
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Replay a specific webhook delivery",
+        "parameters": [
+          { "in": "path", "name": "id",         "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "in": "path", "name": "deliveryId", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Replay result" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/video/transcode": {
+      "post": {
+        "tags": ["Video"],
+        "summary": "Create a video transcoding job",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["inputPath"],
+                "properties": {
+                  "inputPath": { "type": "string" },
+                  "options":   { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Job created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VideoJob" } } } },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/video/jobs/{jobId}": {
+      "get": {
+        "tags": ["Video"],
+        "summary": "Get video transcoding job status",
+        "parameters": [{ "in": "path", "name": "jobId", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Job status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VideoJob" } } } },
+          "404": { "description": "Job not found" }
+        }
+      }
+    },
+    "/tts/jobs": {
+      "post": {
+        "tags": ["TTS"],
+        "summary": "Create a text-to-speech job",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["segments"],
+                "properties": {
+                  "segments": { "type": "array", "items": { "type": "object" } },
+                  "provider": { "type": "string", "enum": ["elevenlabs","google"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "TTS job created" },
+          "400": { "description": "Validation error" }
+        }
+      },
+      "get": {
+        "tags": ["TTS"],
+        "summary": "List all TTS jobs",
+        "responses": {
+          "200": { "description": "Array of TTS jobs" }
+        }
+      }
+    },
+    "/tts/jobs/{jobId}": {
+      "get": {
+        "tags": ["TTS"],
+        "summary": "Get TTS job status",
+        "parameters": [{ "in": "path", "name": "jobId", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "TTS job" },
+          "404": { "description": "Not found" }
+        }
+      },
+      "delete": {
+        "tags": ["TTS"],
+        "summary": "Cancel a TTS job",
+        "parameters": [{ "in": "path", "name": "jobId", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Job cancelled" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/tts/voices": {
+      "get": {
+        "tags": ["TTS"],
+        "summary": "List available TTS voices",
+        "parameters": [
+          { "in": "query", "name": "provider", "schema": { "type": "string", "enum": ["elevenlabs","google"] } }
+        ],
+        "responses": {
+          "200": { "description": "Array of voices" }
+        }
+      }
+    },
+    "/translation/translate": {
+      "post": {
+        "tags": ["Translation"],
+        "summary": "Translate text into one or more target languages",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["text","targetLanguages"],
+                "properties": {
+                  "text":               { "type": "string" },
+                  "sourceLanguage":     { "type": "string" },
+                  "targetLanguages":    { "type": "array", "items": { "type": "string" } },
+                  "preserveFormatting": { "type": "boolean" },
+                  "preserveHashtags":   { "type": "boolean" },
+                  "preserveMentions":   { "type": "boolean" },
+                  "preserveUrls":       { "type": "boolean" },
+                  "preserveEmojis":     { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Translation results" },
+          "400": { "description": "Validation error" },
+          "503": { "description": "No translation provider available" }
+        }
+      }
+    },
+    "/translation/languages": {
+      "get": {
+        "tags": ["Translation"],
+        "summary": "List supported languages",
+        "responses": {
+          "200": { "description": "Array of supported languages" }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "System health check",
+        "security": [],
+        "responses": {
+          "200": { "description": "System is healthy" },
+          "503": { "description": "One or more services degraded" }
+        }
+      }
+    },
+    "/organizations": {
+      "get": {
+        "tags": ["Organizations"],
+        "summary": "List organizations for the authenticated user",
+        "responses": {
+          "200": { "description": "Array of organizations", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Organization" } } } } }
+        }
+      },
+      "post": {
+        "tags": ["Organizations"],
+        "summary": "Create a new organization",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Organization created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Organization" } } } },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/search": {
+      "get": {
+        "tags": ["Search"],
+        "summary": "Full-text search across posts",
+        "parameters": [
+          { "in": "query", "name": "q", "required": true, "schema": { "type": "string" } },
+          { "in": "query", "name": "limit", "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "Search results" },
+          "400": { "description": "Missing query parameter" }
+        }
+      }
+    }
+  }
+}

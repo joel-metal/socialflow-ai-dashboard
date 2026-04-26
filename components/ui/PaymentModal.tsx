@@ -6,6 +6,26 @@ import { PaymentTransaction, SponsorshipTier, WalletConnection } from '../../typ
 import { AppError } from '../../src/utils/AppError';
 import { ErrorCode } from '../../src/constants/ErrorCodes';
 
+const stripeErrorToMessage: Partial<Record<ErrorCode, string>> = {
+  [ErrorCode.ERR_INSUFFICIENT_FUNDS]: 'Your balance is too low to complete this payment.',
+  [ErrorCode.ERR_PAYMENT_REQUIRED]: 'Payment is required to proceed.',
+  [ErrorCode.ERR_TRANSACTION_FAILED]: 'The transaction could not be completed. Please try again.',
+  [ErrorCode.ERR_TRANSACTION_EXPIRED]: 'This transaction has expired. Please start over.',
+  [ErrorCode.ERR_TRANSACTION_NOT_SIGNED]: 'Transaction was not signed. Please approve it in your wallet.',
+  [ErrorCode.ERR_WALLET_NOT_CONNECTED]: 'Your wallet is not connected. Please connect and try again.',
+  [ErrorCode.ERR_WALLET_NOT_AVAILABLE]: 'No wallet detected. Please install a compatible wallet.',
+  [ErrorCode.ERR_BLOCKCHAIN_UNAVAILABLE]: 'The payment network is temporarily unavailable. Please try later.',
+  [ErrorCode.ERR_NETWORK_ERROR]: 'A network error occurred. Please check your connection and retry.',
+  [ErrorCode.ERR_INTERNAL_SERVER_ERROR]: 'Something went wrong on our end. Please try again shortly.',
+};
+
+function getErrorMessage(err: unknown): string {
+  if (AppError.isAppError(err)) {
+    return stripeErrorToMessage[err.code as ErrorCode] ?? 'An unexpected payment error occurred.';
+  }
+  return 'An unexpected error occurred. Please try again.';
+}
+
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -52,7 +72,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setWallet(connection);
       setStep('select');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect wallet');
+      setError(getErrorMessage(err));
       if (AppError.isAppError(err)) {
         setErrorCode(err.code);
       }
@@ -90,7 +110,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         throw new AppError(ErrorCode.ERR_TRANSACTION_FAILED, 'Transaction failed');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Payment failed');
+      setError(getErrorMessage(err));
       if (AppError.isAppError(err)) {
         setErrorCode(err.code);
       }

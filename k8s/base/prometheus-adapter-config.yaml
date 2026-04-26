@@ -1,0 +1,26 @@
+# Prometheus Adapter ConfigMap — maps the bullmq_queue_waiting Prometheus gauge
+# to a Kubernetes external metric so the HPA can scale on queue depth.
+#
+# Install the adapter:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm install prometheus-adapter prometheus-community/prometheus-adapter \
+#     --namespace monitoring --create-namespace \
+#     --set prometheus.url=http://prometheus.monitoring.svc \
+#     --set prometheus.port=9090 \
+#     -f k8s/base/prometheus-adapter-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-adapter-config
+  namespace: monitoring
+data:
+  config.yaml: |
+    externalRules:
+      - seriesQuery: 'bullmq_queue_waiting{queue!=""}'
+        resources:
+          overrides:
+            namespace: { resource: namespace }
+        name:
+          matches: "bullmq_queue_waiting"
+          as: "bullmq_queue_waiting"
+        metricsQuery: 'sum(bullmq_queue_waiting{<<.LabelMatchers>>}) by (queue)'

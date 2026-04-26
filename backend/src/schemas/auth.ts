@@ -19,3 +19,8 @@ export const credentialsSchema = z.object({
 export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1),
 });
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(8),
+  newPassword: z.string().min(8),
+});

@@ -12,7 +12,7 @@ vi.mock('ioredis');
 
 describe('SocketService Integration', () => {
   let io: Server;
-  let serverSocket: any;
+  let _serverSocket: unknown;
   let clientSocket: ClientSocket;
   let httpServer: HttpServer;
   let port: number;
@@ -90,12 +90,12 @@ describe('SocketService Integration', () => {
 
   it('should allow emitting and receiving an event in a room', (done) => {
     let receivedPayload: any;
-    
+
     // Connect user 1 directly without org
     const user_socket1 = Client(`http://localhost:${port}`, {
       auth: { token: validToken },
     });
-    
+
     user_socket1.on('message', (payload) => {
       receivedPayload = payload;
       expect(receivedPayload.text).toBe('Hello world!');

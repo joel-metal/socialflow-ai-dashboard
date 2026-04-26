@@ -22,6 +22,8 @@ export interface WorkerMonitorOptions {
   stuckJobThresholdMs?: number;
   maxRestartsPerHour?: number;
   maxRecoveryAttempts?: number;
+  restartBackoffBaseMs?: number;
+  restartBackoffMaxMs?: number;
   retryableFailurePatterns?: RegExp[];
   alertHandler?: (alert: MonitorAlert) => Promise<void> | void;
   logger?: Pick<Console, 'info' | 'warn' | 'error'>;
@@ -61,6 +63,9 @@ interface RegisteredWorker {
   restartCount: number;
   lastRestartAt?: string;
   listenerAttached: boolean;
+  lastErrorMessage?: string;
+  consecutiveRestarts: number;
+  lastRestartTimestamp?: number;
 }
 
 interface MonitoredQueue {
@@ -81,7 +86,10 @@ const DEFAULT_LATENCY_THRESHOLD_MS = 60000;
 const DEFAULT_STUCK_JOB_THRESHOLD_MS = 300000;
 const DEFAULT_MAX_RESTARTS_PER_HOUR = 3;
 const DEFAULT_MAX_RECOVERY_ATTEMPTS = 5;
+const DEFAULT_RESTART_BACKOFF_BASE_MS = 1000;
+const DEFAULT_RESTART_BACKOFF_MAX_MS = 60000;
 const HOUR_MS = 60 * 60 * 1000;
+const RESTART_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes to reset consecutive counter
 
 export class WorkerMonitor {
   private readonly options: Required<Omit<WorkerMonitorOptions, 'connection'>> & {
@@ -101,6 +109,8 @@ export class WorkerMonitor {
       stuckJobThresholdMs: options.stuckJobThresholdMs ?? DEFAULT_STUCK_JOB_THRESHOLD_MS,
       maxRestartsPerHour: options.maxRestartsPerHour ?? DEFAULT_MAX_RESTARTS_PER_HOUR,
       maxRecoveryAttempts: options.maxRecoveryAttempts ?? DEFAULT_MAX_RECOVERY_ATTEMPTS,
+      restartBackoffBaseMs: options.restartBackoffBaseMs ?? DEFAULT_RESTART_BACKOFF_BASE_MS,
+      restartBackoffMaxMs: options.restartBackoffMaxMs ?? DEFAULT_RESTART_BACKOFF_MAX_MS,
       retryableFailurePatterns: options.retryableFailurePatterns ?? [
         /stalled/i,
         /timeout/i,
@@ -138,12 +148,16 @@ export class WorkerMonitor {
         metadata: { queueName, jobId },
       });
 
-      await this.restartWorkersForQueue(queueName, `stalled job detected: ${String(jobId)}`);
+      await this.restartWorkersForQueue(queueName, {
+        reason: `stalled job detected: ${String(jobId)}`,
+      });
     });
 
     monitoredQueue.events.on('failed', async ({ jobId, failedReason, prev }) => {
       const reason = failedReason ?? 'unknown';
-      const isRetryable = this.options.retryableFailurePatterns.some((pattern) => pattern.test(reason));
+      const isRetryable = this.options.retryableFailurePatterns.some((pattern) =>
+        pattern.test(reason),
+      );
 
       if (!isRetryable) {
         return;
@@ -202,6 +216,7 @@ export class WorkerMonitor {
       restartDeniedCount: 0,
       restartCount: 0,
       listenerAttached: false,
+      consecutiveRestarts: 0,
     });
 
     if (this.running) {
@@ -329,7 +344,12 @@ export class WorkerMonitor {
         },
       });
 
-      await this.restartWorker(worker.workerName, `worker error: ${error.message}`);
+      worker.lastErrorMessage = error.message;
+
+      await this.restartWorker(worker.workerName, {
+        reason: `worker error: ${error.message}`,
+        lastErrorMessage: error.message,
+      });
     };
 
     worker.worker.on('error', errorListener);
@@ -339,13 +359,15 @@ export class WorkerMonitor {
   private async checkQueues(): Promise<void> {
     for (const queue of this.queues.values()) {
       try {
-        const [waitingCount, activeCount, failedCount, waitingJobs, activeJobs] = await Promise.all([
-          queue.queue.getWaitingCount(),
-          queue.queue.getActiveCount(),
-          queue.queue.getFailedCount(),
-          queue.queue.getWaiting(0, 0),
-          queue.queue.getActive(0, 100),
-        ]);
+        const [waitingCount, activeCount, failedCount, waitingJobs, activeJobs] = await Promise.all(
+          [
+            queue.queue.getWaitingCount(),
+            queue.queue.getActiveCount(),
+            queue.queue.getFailedCount(),
+            queue.queue.getWaiting(0, 0),
+            queue.queue.getActive(0, 100),
+          ],
+        );
 
         queue.lastCheckedAt = new Date().toISOString();
 
@@ -393,7 +415,9 @@ export class WorkerMonitor {
             },
           });
 
-          await this.restartWorkersForQueue(queue.queueName, 'stuck active jobs detected');
+          await this.restartWorkersForQueue(queue.queueName, {
+            reason: 'stuck active jobs detected',
+          });
         }
       } catch (error) {
         await this.sendAlert({
@@ -409,21 +433,29 @@ export class WorkerMonitor {
     }
   }
 
-  private async restartWorkersForQueue(queueName: string, reason: string): Promise<void> {
+  private async restartWorkersForQueue(
+    queueName: string,
+    context: { reason: string; lastErrorMessage?: string },
+  ): Promise<void> {
     const workerNames = Array.from(this.workers.values())
       .filter((worker) => worker.queueName === queueName)
       .map((worker) => worker.workerName);
 
     for (const workerName of workerNames) {
-      await this.restartWorker(workerName, reason);
+      await this.restartWorker(workerName, context);
     }
   }
 
-  private async restartWorker(workerName: string, reason: string): Promise<void> {
+  private async restartWorker(
+    workerName: string,
+    context: { reason: string; lastErrorMessage?: string },
+  ): Promise<void> {
     const worker = this.workers.get(workerName);
     if (!worker) {
       return;
     }
+
+    const lastErrorMessage = context.lastErrorMessage ?? worker.lastErrorMessage;
 
     const now = Date.now();
     worker.restartHistory = worker.restartHistory.filter((timestamp) => now - timestamp <= HOUR_MS);
@@ -437,11 +469,33 @@ export class WorkerMonitor {
         metadata: {
           workerName,
           queueName: worker.queueName,
-          reason,
+          reason: context.reason,
+          lastErrorMessage,
           maxRestartsPerHour: this.options.maxRestartsPerHour,
         },
       });
       return;
+    }
+
+    // Reset consecutive restarts if enough time has passed
+    if (
+      worker.lastRestartTimestamp &&
+      now - worker.lastRestartTimestamp > RESTART_COOLDOWN_MS
+    ) {
+      worker.consecutiveRestarts = 0;
+    }
+
+    // Calculate exponential backoff delay
+    const backoffDelay = Math.min(
+      Math.pow(2, worker.consecutiveRestarts) * this.options.restartBackoffBaseMs,
+      this.options.restartBackoffMaxMs,
+    );
+
+    if (backoffDelay > 0) {
+      this.options.logger.info(
+        `[worker-monitor] Applying backoff delay of ${backoffDelay}ms before restarting ${workerName} (attempt ${worker.consecutiveRestarts + 1})`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, backoffDelay));
     }
 
     try {
@@ -463,6 +517,8 @@ export class WorkerMonitor {
 
     worker.restartHistory.push(now);
     worker.restartCount += 1;
+    worker.consecutiveRestarts += 1;
+    worker.lastRestartTimestamp = now;
     worker.lastRestartAt = new Date(now).toISOString();
 
     await this.sendAlert({
@@ -472,8 +528,11 @@ export class WorkerMonitor {
       metadata: {
         workerName,
         queueName: worker.queueName,
-        reason,
+        reason: context.reason,
+        lastErrorMessage,
         restartCount: worker.restartCount,
+        consecutiveRestarts: worker.consecutiveRestarts,
+        backoffDelayMs: backoffDelay,
       },
     });
   }
@@ -488,15 +547,23 @@ export class WorkerMonitor {
       await this.options.alertHandler(payload);
     } catch (error) {
       this.options.logger.error(
-        `[worker-monitor] Alert handler failed: ${error instanceof Error ? error.message : String(error)}`,
+        `[worker-monitor] Alert handler failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
 
     if (payload.severity === 'critical') {
-      this.options.logger.error(`[worker-monitor] ${payload.code}: ${payload.message}`, payload.metadata ?? {});
+      this.options.logger.error(
+        `[worker-monitor] ${payload.code}: ${payload.message}`,
+        payload.metadata ?? {},
+      );
       return;
     }
 
-    this.options.logger.warn(`[worker-monitor] ${payload.code}: ${payload.message}`, payload.metadata ?? {});
+    this.options.logger.warn(
+      `[worker-monitor] ${payload.code}: ${payload.message}`,
+      payload.metadata ?? {},
+    );
   }
 }

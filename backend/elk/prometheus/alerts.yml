@@ -1,0 +1,163 @@
+groups:
+  - name: sli_response_time
+    interval: 30s
+    rules:
+      # ── Health endpoints ──────────────────────────────────────────────────
+      - alert: HealthEndpointP95Breach
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_ms_bucket{category="health"}[5m])) by (le)
+          ) > 200
+        for: 2m
+        labels:
+          severity: warning
+          category: health
+        annotations:
+          summary: "Health endpoint p95 latency > 200ms"
+          description: "p95={{ $value | humanizeDuration }} exceeds 200ms SLI budget."
+
+      - alert: HealthEndpointP99Breach
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_ms_bucket{category="health"}[5m])) by (le)
+          ) > 500
+        for: 2m
+        labels:
+          severity: critical
+          category: health
+        annotations:
+          summary: "Health endpoint p99 latency > 500ms"
+          description: "p99={{ $value | humanizeDuration }} exceeds 500ms SLI budget."
+
+      # ── AI endpoints ──────────────────────────────────────────────────────
+      - alert: AIEndpointP95Breach
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_ms_bucket{category="ai"}[5m])) by (le)
+          ) > 2000
+        for: 2m
+        labels:
+          severity: warning
+          category: ai
+        annotations:
+          summary: "AI endpoint p95 latency > 2s"
+          description: "p95={{ $value | humanizeDuration }} exceeds 2s SLI budget."
+
+      - alert: AIEndpointP99Breach
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_ms_bucket{category="ai"}[5m])) by (le)
+          ) > 3000
+        for: 2m
+        labels:
+          severity: critical
+          category: ai
+        annotations:
+          summary: "AI endpoint p99 latency > 3s"
+          description: "p99={{ $value | humanizeDuration }} exceeds 3s SLI budget."
+
+      # ── Auth endpoints ────────────────────────────────────────────────────
+      - alert: AuthEndpointP95Breach
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_ms_bucket{category="auth"}[5m])) by (le)
+          ) > 500
+        for: 2m
+        labels:
+          severity: warning
+          category: auth
+        annotations:
+          summary: "Auth endpoint p95 latency > 500ms"
+          description: "p95={{ $value | humanizeDuration }} exceeds 500ms SLI budget."
+
+      - alert: AuthEndpointP99Breach
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_ms_bucket{category="auth"}[5m])) by (le)
+          ) > 1000
+        for: 2m
+        labels:
+          severity: critical
+          category: auth
+        annotations:
+          summary: "Auth endpoint p99 latency > 1s"
+          description: "p99={{ $value | humanizeDuration }} exceeds 1s SLI budget."
+
+      # ── General endpoints ─────────────────────────────────────────────────
+      - alert: GeneralEndpointP95Breach
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_ms_bucket{category="general"}[5m])) by (le)
+          ) > 500
+        for: 2m
+        labels:
+          severity: warning
+          category: general
+        annotations:
+          summary: "General endpoint p95 latency > 500ms"
+          description: "p95={{ $value | humanizeDuration }} exceeds 500ms SLI budget."
+
+      - alert: GeneralEndpointP99Breach
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_ms_bucket{category="general"}[5m])) by (le)
+          ) > 1000
+        for: 2m
+        labels:
+          severity: critical
+          category: general
+        annotations:
+          summary: "General endpoint p99 latency > 1s"
+          description: "p99={{ $value | humanizeDuration }} exceeds 1s SLI budget."
+
+      # ── SLI breach rate ───────────────────────────────────────────────────
+      - alert: HighSLIBreachRate
+        expr: |
+          sum(rate(sli_breach_total[5m])) by (category) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High SLI breach rate for {{ $labels.category }}"
+          description: "{{ $value | humanize }} breaches/s in category {{ $labels.category }}."
+
+  - name: nodejs_runtime
+    interval: 30s
+    rules:
+      - alert: EventLoopLagHigh
+        expr: nodejs_event_loop_lag_ms > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node.js event loop lag > 100ms"
+          description: "Event loop lag is {{ $value | humanize }}ms — the process may be CPU-bound."
+
+      - alert: EventLoopLagCritical
+        expr: nodejs_event_loop_lag_ms > 500
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node.js event loop lag > 500ms"
+          description: "Event loop lag is {{ $value | humanize }}ms — requests are likely timing out."
+
+      - alert: HeapUsageHigh
+        expr: |
+          nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node.js heap usage > 85%"
+          description: "Heap is {{ $value | humanizePercentage }} full — risk of OOM."
+
+      - alert: HeapUsageCritical
+        expr: |
+          nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes > 0.95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node.js heap usage > 95%"
+          description: "Heap is {{ $value | humanizePercentage }} full — OOM imminent."

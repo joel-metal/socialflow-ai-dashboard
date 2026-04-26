@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: socialflow-dev-quota
+  namespace: socialflow-dev
+spec:
+  hard:
+    # Dev HPA max = 3 replicas × 250m CPU / 256Mi memory — quota gives ~2× headroom
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+    # Guard against runaway pod/service sprawl
+    pods: "10"
+    services: "5"
+    persistentvolumeclaims: "5"

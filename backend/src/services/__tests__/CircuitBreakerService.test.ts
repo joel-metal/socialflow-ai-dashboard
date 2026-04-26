@@ -1,4 +1,4 @@
-import { circuitBreakerService, CircuitBreakerError } from '../CircuitBreakerService';
+import { circuitBreakerService, CircuitStats } from '../CircuitBreakerService';
 
 describe('CircuitBreakerService', () => {
   beforeEach(() => {
@@ -14,9 +14,9 @@ describe('CircuitBreakerService', () => {
   describe('Basic Circuit Breaker Functionality', () => {
     it('should execute successful function', async () => {
       const mockFn = jest.fn().mockResolvedValue('success');
-      
+
       const result = await circuitBreakerService.execute('ai', mockFn);
-      
+
       expect(result).toBe('success');
       expect(mockFn).toHaveBeenCalledTimes(1);
     });
@@ -24,19 +24,17 @@ describe('CircuitBreakerService', () => {
     it('should use fallback on failure', async () => {
       const mockFn = jest.fn().mockRejectedValue(new Error('API Error'));
       const fallback = jest.fn().mockReturnValue('fallback-value');
-      
+
       const result = await circuitBreakerService.execute('ai', mockFn, fallback);
-      
+
       expect(result).toBe('fallback-value');
       expect(fallback).toHaveBeenCalled();
     });
 
     it('should throw error when no fallback provided', async () => {
       const mockFn = jest.fn().mockRejectedValue(new Error('API Error'));
-      
-      await expect(
-        circuitBreakerService.execute('twitter', mockFn)
-      ).rejects.toThrow();
+
+      await expect(circuitBreakerService.execute('twitter', mockFn)).rejects.toThrow();
     });
   });
 
@@ -49,7 +47,7 @@ describe('CircuitBreakerService', () => {
       for (let i = 0; i < 10; i++) {
         try {
           await circuitBreakerService.execute('twitter', mockFn, fallback);
-        } catch (error) {
+        } catch (_error) {
           // Expected
         }
       }
@@ -76,7 +74,7 @@ describe('CircuitBreakerService', () => {
       await circuitBreakerService.execute('ai', mockFn);
 
       const stats = circuitBreakerService.getStats('ai');
-      
+
       expect(stats).toHaveProperty('name');
       expect(stats).toHaveProperty('state');
       expect(stats).toHaveProperty('successes');
@@ -89,26 +87,26 @@ describe('CircuitBreakerService', () => {
       await circuitBreakerService.execute('twitter', mockFn);
 
       const stats = circuitBreakerService.getStats();
-      
+
       expect(Array.isArray(stats)).toBe(true);
-      expect(stats.length).toBeGreaterThan(0);
+      expect((stats as CircuitStats[]).length).toBeGreaterThan(0);
     });
   });
 
   describe('Service-Specific Configurations', () => {
     it('should use AI-specific configuration', async () => {
       const breaker = circuitBreakerService.getBreaker('ai');
-      expect(breaker.options.timeout).toBe(30000); // AI has 30s timeout
+      expect((breaker as any).options.timeout).toBe(30000); // AI has 30s timeout
     });
 
     it('should use Twitter-specific configuration', async () => {
       const breaker = circuitBreakerService.getBreaker('twitter');
-      expect(breaker.options.timeout).toBe(10000); // Twitter has 10s timeout
+      expect((breaker as any).options.timeout).toBe(10000); // Twitter has 10s timeout
     });
 
     it('should use Translation-specific configuration', async () => {
       const breaker = circuitBreakerService.getBreaker('translation');
-      expect(breaker.options.timeout).toBe(15000); // Translation has 15s timeout
+      expect((breaker as any).options.timeout).toBe(15000); // Translation has 15s timeout
     });
   });
 
@@ -118,9 +116,9 @@ describe('CircuitBreakerService', () => {
       circuitBreakerService.registerFallback('ai', customFallback);
 
       const mockFn = jest.fn().mockRejectedValue(new Error('API Error'));
-      
+
       const result = await circuitBreakerService.execute('ai', mockFn);
-      
+
       expect(result).toBe('custom-fallback');
       expect(customFallback).toHaveBeenCalled();
     });
@@ -129,7 +127,7 @@ describe('CircuitBreakerService', () => {
   describe('Error Handling', () => {
     it('should handle CircuitBreakerError', async () => {
       const mockFn = jest.fn().mockRejectedValue(new Error('API Error'));
-      
+
       try {
         await circuitBreakerService.execute('twitter', mockFn);
       } catch (error) {
@@ -140,7 +138,7 @@ describe('CircuitBreakerService', () => {
     it('should preserve original error information', async () => {
       const originalError = new Error('Original API Error');
       const mockFn = jest.fn().mockRejectedValue(originalError);
-      
+
       try {
         await circuitBreakerService.execute('twitter', mockFn);
       } catch (error) {

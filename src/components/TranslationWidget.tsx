@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { translationService } from '../services/TranslationService';
-import { TranslationResult, SupportedLanguage } from '../types/translation';
+import { TranslationResult, SupportedLanguage } from '@socialflow/shared';
 
 interface TranslationWidgetProps {
   text: string;
