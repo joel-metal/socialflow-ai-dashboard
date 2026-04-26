@@ -8,6 +8,8 @@ interface QueueJob {
   addedAt: Date;
   startedAt?: Date;
   processor: () => Promise<void>;
+  resolve: () => void;
+  reject: (err: unknown) => void;
 }
 
 /**
@@ -19,36 +21,42 @@ class VideoQueue {
   private processing = false;
   private maxConcurrent = 1; // Process one video at a time for CPU-intensive tasks
   private activeJobs = 0;
+  private pendingMaxConcurrent: number | null = null;
 
   /**
-   * Add a job to the queue
+   * Add a job to the queue.
+   * Returns a promise that resolves (or rejects) when the job finishes.
    */
-  public async addJob(
+  public addJob(
     jobId: string,
     processor: () => Promise<void>,
     priority: number = 0,
   ): Promise<void> {
-    const queueJob: QueueJob = {
-      id: jobId,
-      priority,
-      addedAt: new Date(),
-      processor,
-    };
+    return new Promise<void>((resolve, reject) => {
+      const queueJob: QueueJob = {
+        id: jobId,
+        priority,
+        addedAt: new Date(),
+        processor,
+        resolve,
+        reject,
+      };
 
-    // Insert job based on priority (higher priority first)
-    const insertIndex = this.queue.findIndex((job) => job.priority < priority);
-    if (insertIndex === -1) {
-      this.queue.push(queueJob);
-    } else {
-      this.queue.splice(insertIndex, 0, queueJob);
-    }
+      // Insert job based on priority (higher priority first)
+      const insertIndex = this.queue.findIndex((job) => job.priority < priority);
+      if (insertIndex === -1) {
+        this.queue.push(queueJob);
+      } else {
+        this.queue.splice(insertIndex, 0, queueJob);
+      }
 
-    logger.info(`Job ${jobId} added to queue`, { priority });
+      logger.info(`Job ${jobId} added to queue`, { priority });
 
-    // Start processing if not already running
-    if (!this.processing) {
-      this.processQueue();
-    }
+      // Start processing if not already running
+      if (!this.processing) {
+        this.processQueue();
+      }
+    });
   }
 
   /**
@@ -75,10 +83,17 @@ class VideoQueue {
       try {
         await job.processor();
         logger.info(`Job ${job.id} completed successfully`);
+        job.resolve();
       } catch (error) {
         logger.error(`Job ${job.id} failed`, { error });
+        job.reject(error);
       } finally {
         this.activeJobs--;
+        if (this.activeJobs === 0 && this.pendingMaxConcurrent !== null) {
+          this.maxConcurrent = this.pendingMaxConcurrent;
+          this.pendingMaxConcurrent = null;
+          logger.info(`Applied pending maxConcurrent: ${this.maxConcurrent}`);
+        }
       }
     }
 
@@ -107,10 +122,18 @@ class VideoQueue {
   }
 
   /**
-   * Set max concurrent jobs
+   * Set max concurrent jobs.
+   * If jobs are currently active, the new limit is deferred until they drain.
    */
   public setMaxConcurrent(max: number): void {
-    this.maxConcurrent = Math.max(1, max);
+    const clamped = Math.max(1, max);
+    if (this.activeJobs === 0) {
+      this.maxConcurrent = clamped;
+      this.pendingMaxConcurrent = null;
+    } else {
+      this.pendingMaxConcurrent = clamped;
+      logger.info(`Deferring maxConcurrent change to ${clamped} until active jobs drain`);
+    }
   }
 }
 
