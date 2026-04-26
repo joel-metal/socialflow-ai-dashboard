@@ -1,4 +1,7 @@
 import { circuitBreakerService } from './CircuitBreakerService';
+import { createSocialWorker } from '../queues/SocialWorker';
+
+const twitterWorker = createSocialWorker({ maxAttempts: 5, fallbackBackoffMs: 1000 });
 
 /**
  * Twitter API Response Types
@@ -51,7 +54,7 @@ class TwitterService {
   }
 
   /**
-   * Post a tweet with circuit breaker protection
+   * Post a tweet with circuit breaker + smart retry-after protection
    */
   public async postTweet(request: TwitterPostRequest): Promise<TwitterPost> {
     if (!this.isConfigured()) {
@@ -61,32 +64,32 @@ class TwitterService {
     return circuitBreakerService.execute(
       'twitter',
       async () => {
-        const response = await fetch(`${this.API_BASE}/tweets`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${this.bearerToken}`,
-            'Content-Type': 'application/json',
+        const { result, error } = await twitterWorker.run<TwitterPost>({
+          id: `postTweet-${Date.now()}`,
+          execute: () => fetch(`${this.API_BASE}/tweets`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.bearerToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(request),
+          }),
+          transform: async (res) => {
+            const data = await res.json();
+            return data.data;
           },
-          body: JSON.stringify(request),
         });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(`Twitter API error: ${response.status} - ${JSON.stringify(error)}`);
-        }
-
-        const data = await response.json();
-        return data.data;
+        if (error) throw error;
+        return result!;
       },
       async () => {
-        // Fallback: Queue for later or throw
         throw new Error('Twitter API temporarily unavailable. Post has been queued for retry.');
       }
     );
   }
 
   /**
-   * Get user timeline with circuit breaker protection
+   * Get user timeline with circuit breaker + smart retry-after protection
    */
   public async getUserTimeline(userId: string, maxResults: number = 10): Promise<TwitterPost[]> {
     if (!this.isConfigured()) {
@@ -96,24 +99,21 @@ class TwitterService {
     return circuitBreakerService.execute(
       'twitter',
       async () => {
-        const response = await fetch(
-          `${this.API_BASE}/users/${userId}/tweets?max_results=${maxResults}&tweet.fields=created_at,public_metrics`,
-          {
-            headers: {
-              'Authorization': `Bearer ${this.bearerToken}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Twitter API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data.data || [];
+        const { result, error } = await twitterWorker.run<TwitterPost[]>({
+          id: `getUserTimeline-${userId}`,
+          execute: () => fetch(
+            `${this.API_BASE}/users/${userId}/tweets?max_results=${maxResults}&tweet.fields=created_at,public_metrics`,
+            { headers: { 'Authorization': `Bearer ${this.bearerToken}` } }
+          ),
+          transform: async (res) => {
+            const data = await res.json();
+            return data.data || [];
+          },
+        });
+        if (error) throw error;
+        return result!;
       },
       async () => {
-        // Fallback: return empty array
         console.warn('Twitter circuit breaker open, returning empty timeline');
         return [];
       }
@@ -121,7 +121,7 @@ class TwitterService {
   }
 
   /**
-   * Get user info with circuit breaker protection
+   * Get user info with circuit breaker + smart retry-after protection
    */
   public async getUserInfo(username: string): Promise<TwitterUser | null> {
     if (!this.isConfigured()) {
@@ -131,24 +131,21 @@ class TwitterService {
     return circuitBreakerService.execute(
       'twitter',
       async () => {
-        const response = await fetch(
-          `${this.API_BASE}/users/by/username/${username}?user.fields=profile_image_url`,
-          {
-            headers: {
-              'Authorization': `Bearer ${this.bearerToken}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Twitter API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data.data;
+        const { result, error } = await twitterWorker.run<TwitterUser | null>({
+          id: `getUserInfo-${username}`,
+          execute: () => fetch(
+            `${this.API_BASE}/users/by/username/${username}?user.fields=profile_image_url`,
+            { headers: { 'Authorization': `Bearer ${this.bearerToken}` } }
+          ),
+          transform: async (res) => {
+            const data = await res.json();
+            return data.data ?? null;
+          },
+        });
+        if (error) throw error;
+        return result!;
       },
       async () => {
-        // Fallback: return null
         console.warn('Twitter circuit breaker open, returning null user');
         return null;
       }
@@ -156,7 +153,7 @@ class TwitterService {
   }
 
   /**
-   * Search tweets with circuit breaker protection
+   * Search tweets with circuit breaker + smart retry-after protection
    */
   public async searchTweets(query: string, maxResults: number = 10): Promise<TwitterPost[]> {
     if (!this.isConfigured()) {
@@ -166,24 +163,21 @@ class TwitterService {
     return circuitBreakerService.execute(
       'twitter',
       async () => {
-        const response = await fetch(
-          `${this.API_BASE}/tweets/search/recent?query=${encodeURIComponent(query)}&max_results=${maxResults}&tweet.fields=created_at,public_metrics`,
-          {
-            headers: {
-              'Authorization': `Bearer ${this.bearerToken}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Twitter API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data.data || [];
+        const { result, error } = await twitterWorker.run<TwitterPost[]>({
+          id: `searchTweets-${Date.now()}`,
+          execute: () => fetch(
+            `${this.API_BASE}/tweets/search/recent?query=${encodeURIComponent(query)}&max_results=${maxResults}&tweet.fields=created_at,public_metrics`,
+            { headers: { 'Authorization': `Bearer ${this.bearerToken}` } }
+          ),
+          transform: async (res) => {
+            const data = await res.json();
+            return data.data || [];
+          },
+        });
+        if (error) throw error;
+        return result!;
       },
       async () => {
-        // Fallback: return empty array
         console.warn('Twitter circuit breaker open, returning empty search results');
         return [];
       }
