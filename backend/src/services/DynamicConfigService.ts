@@ -8,6 +8,7 @@ export enum ConfigKey {
   FEATURE_AI_GENERATOR = 'FEATURE_AI_GENERATOR',
   MAINTENANCE_MODE = 'MAINTENANCE_MODE',
   CACHE_TTL = 'CACHE_TTL',
+  MODERATION_SENSITIVITY = 'MODERATION_SENSITIVITY',
 }
 
 export type ConfigType = 'string' | 'number' | 'boolean' | 'json';

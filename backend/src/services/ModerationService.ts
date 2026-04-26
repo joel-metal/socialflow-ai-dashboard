@@ -1,4 +1,5 @@
 import { createLogger } from '../lib/logger';
+import { dynamicConfigService, ConfigKey } from './DynamicConfigService';
 
 const logger = createLogger('moderation-service');
 
@@ -49,8 +50,11 @@ const ALWAYS_BLOCK = new Set([
   'self-harm/instructions',
 ]);
 
-function getSensitivity(): SensitivityLevel {
-  const val = (process.env.MODERATION_SENSITIVITY ?? 'medium').toLowerCase();
+function getSensitivity(tenantId?: string): SensitivityLevel {
+  const tenantVal = tenantId
+    ? dynamicConfigService.get<string>(`tenant:${tenantId}:${ConfigKey.MODERATION_SENSITIVITY}`)
+    : null;
+  const val = (tenantVal ?? process.env.MODERATION_SENSITIVITY ?? 'medium').toLowerCase();
   if (val === 'low' || val === 'high') return val;
   return 'medium';
 }
@@ -139,7 +143,7 @@ export const ModerationService = {
    *   OPENAI_API_KEY=sk-xxx         (required, otherwise behavior above applies)
    *   MODERATION_SENSITIVITY=low|medium|high  (default: medium)
    */
-  async moderate(text: string): Promise<ModerationResult> {
+  async moderate(text: string, tenantId?: string): Promise<ModerationResult> {
     if (!this.isConfigured()) {
       const msg = 'ModerationService: OPENAI_API_KEY not set — skipping moderation';
       const mode = getMode();
@@ -291,7 +295,7 @@ export const ModerationService = {
     }
 
     const result = data.results[0];
-    const sensitivity = getSensitivity();
+    const sensitivity = getSensitivity(tenantId);
     const threshold = THRESHOLDS[sensitivity];
 
     // Hard block on always-blocked categories
