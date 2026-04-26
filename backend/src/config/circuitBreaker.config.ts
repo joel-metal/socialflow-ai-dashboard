@@ -65,6 +65,28 @@ export const CIRCUIT_CONFIGS = {
     name: 'twitter-service',
   } as CircuitBreakerConfig,
 
+  // TikTok API - Strict settings
+  tiktok: {
+    timeout: 10000,
+    errorThresholdPercentage: 40,
+    resetTimeout: 30000,
+    rollingCountTimeout: 15000,
+    rollingCountBuckets: 10,
+    volumeThreshold: 5,
+    name: 'tiktok-service',
+  } as CircuitBreakerConfig,
+
+  // LinkedIn API - Strict settings
+  linkedin: {
+    timeout: 10000,
+    errorThresholdPercentage: 40,
+    resetTimeout: 30000,
+    rollingCountTimeout: 15000,
+    rollingCountBuckets: 10,
+    volumeThreshold: 5,
+    name: 'linkedin-service',
+  } as CircuitBreakerConfig,
+
   // Blockchain RPC - Very strict
   blockchain: {
     timeout: 8000,               // 8 seconds
@@ -114,6 +136,14 @@ export const FALLBACK_STRATEGIES = {
   twitter: {
     enabled: false,
     message: 'Social media API unavailable. Please try again later.',
+  },
+  tiktok: {
+    enabled: false,
+    message: 'TikTok API unavailable. Please try again later.',
+  },
+  linkedin: {
+    enabled: false,
+    message: 'LinkedIn API unavailable. Please try again later.',
   },
   blockchain: {
     enabled: false,

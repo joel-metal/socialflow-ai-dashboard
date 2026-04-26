@@ -38,7 +38,7 @@ export interface TwitterPostRequest {
  * Provides resilient Twitter operations with automatic failure handling.
  * Prevents cascading failures when Twitter API is down or rate-limited.
  */
-class TwitterService {
+export class TwitterService {
   private readonly API_BASE = 'https://api.twitter.com/2';
   private readonly bearerToken: string;
 
@@ -75,7 +75,7 @@ class TwitterService {
             body: JSON.stringify(request),
           }),
           transform: async (res) => {
-            const data = await res.json();
+            const data = await res.json() as { data: TwitterPost };
             return data.data;
           },
         });
@@ -106,7 +106,7 @@ class TwitterService {
             { headers: { 'Authorization': `Bearer ${this.bearerToken}` } }
           ),
           transform: async (res) => {
-            const data = await res.json();
+            const data = await res.json() as { data?: TwitterPost[] };
             return data.data || [];
           },
         });
@@ -138,7 +138,7 @@ class TwitterService {
             { headers: { 'Authorization': `Bearer ${this.bearerToken}` } }
           ),
           transform: async (res) => {
-            const data = await res.json();
+            const data = await res.json() as { data?: TwitterUser };
             return data.data ?? null;
           },
         });
@@ -170,7 +170,7 @@ class TwitterService {
             { headers: { 'Authorization': `Bearer ${this.bearerToken}` } }
           ),
           transform: async (res) => {
-            const data = await res.json();
+            const data = await res.json() as { data?: TwitterPost[] };
             return data.data || [];
           },
         });

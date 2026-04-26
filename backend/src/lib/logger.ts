@@ -29,9 +29,9 @@ const winstonLogger = winston.createLogger({
 });
 
 export interface Logger {
-  info: (message: string, metadata?: unknown) => void;
-  warn: (message: string, metadata?: unknown) => void;
-  error: (message: string, metadata?: unknown) => void;
+  info: (message: string, metadata?: Record<string, unknown>) => void;
+  warn: (message: string, metadata?: Record<string, unknown>) => void;
+  error: (message: string, metadata?: Record<string, unknown>) => void;
 }
 
 /**
