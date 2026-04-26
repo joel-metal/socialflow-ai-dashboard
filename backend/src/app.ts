@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import { requestIdMiddleware } from './middleware/requestId';
 import { errorHandler, notFoundHandler } from './middleware/error';
 import ttsRoutes from './routes/tts';
+import twitterWebhookRoutes from './routes/twitter-webhook';
 
 const app: Application = express();
 
@@ -31,6 +32,7 @@ app.get('/health', (req, res) => {
 
 // Routes
 app.use('/api/tts', ttsRoutes);
+app.use('/api/twitter-webhook', twitterWebhookRoutes);
 
 // 404 handler - must be after all routes
 app.use(notFoundHandler);
