@@ -13,17 +13,33 @@ export enum ConfigKey {
 
 export type ConfigType = 'string' | 'number' | 'boolean' | 'json';
 
+type ChangeListener = (key: string, newValue: any) => void;
+
 export class DynamicConfigService {
   private cache: Map<string, any> = new Map();
   private pollingInterval: any = null;
   private isPollingActive: boolean = false;
-
   private lastRefreshTimestamp: Date | null = null;
+  private changeListeners: Map<string, ChangeListener[]> = new Map();
 
   constructor(private refreshIntervalMs: number = 60000) {
     // Default 1 minute
     this.refreshCache().catch(console.error);
     this.startPolling();
+  }
+
+  /**
+   * Register a listener that fires whenever the given key changes value.
+   * Returns an unsubscribe function.
+   */
+  public onChange(key: ConfigKey | string, listener: ChangeListener): () => void {
+    const listeners = this.changeListeners.get(key) ?? [];
+    listeners.push(listener);
+    this.changeListeners.set(key, listeners);
+    return () => {
+      const updated = (this.changeListeners.get(key) ?? []).filter(l => l !== listener);
+      this.changeListeners.set(key, updated);
+    };
   }
 
   /**
@@ -61,7 +77,15 @@ export class DynamicConfigService {
 
       this.cache.clear();
       for (const config of configs) {
-        this.cache.set(config.key, this.parseValue(config.value, config.type as ConfigType));
+        newCache.set(config.key, this.parseValue(config.value, config.type as ConfigType));
+      }
+
+      // Fire change listeners for any keys whose values changed
+      for (const [key, newVal] of newCache) {
+        const oldVal = this.cache.get(key);
+        if (oldVal !== newVal) {
+          this.notifyListeners(key, newVal);
+        }
       }
 
       this.lastRefreshTimestamp = new Date();
@@ -117,7 +141,26 @@ export class DynamicConfigService {
     });
 
     // Update local cache immediately
-    this.cache.set(key, this.parseValue(stringValue, type));
+    const parsed = this.parseValue(stringValue, type);
+    const oldVal = this.cache.get(key);
+    this.cache.set(key, parsed);
+    if (oldVal !== parsed) {
+      this.notifyListeners(key, parsed);
+    }
+  }
+
+  /**
+   * Notifies all registered listeners for a given key.
+   */
+  private notifyListeners(key: string, newValue: any): void {
+    const listeners = this.changeListeners.get(key) ?? [];
+    for (const listener of listeners) {
+      try {
+        listener(key, newValue);
+      } catch (err) {
+        console.error(`[DynamicConfigService] Listener error for key "${key}":`, err);
+      }
+    }
   }
 
   /**
