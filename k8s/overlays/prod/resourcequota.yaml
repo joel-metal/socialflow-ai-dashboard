@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: socialflow-prod-quota
+  namespace: socialflow-prod
+spec:
+  hard:
+    # Prod HPA max = 20 replicas × 1000m CPU / 1Gi memory — quota gives ~1.5× headroom
+    requests.cpu: "15"
+    requests.memory: 15Gi
+    limits.cpu: "30"
+    limits.memory: 30Gi
+    # Guard against runaway pod/service sprawl
+    pods: "50"
+    services: "20"
+    persistentvolumeclaims: "20"

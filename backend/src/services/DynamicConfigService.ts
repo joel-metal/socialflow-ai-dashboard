@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { config } from '../config/config';
 
 export enum ConfigKey {
   RATE_LIMIT_MAX = 'RATE_LIMIT_MAX',
@@ -7,7 +8,7 @@ export enum ConfigKey {
   FEATURE_AI_GENERATOR = 'FEATURE_AI_GENERATOR',
   MAINTENANCE_MODE = 'MAINTENANCE_MODE',
   CACHE_TTL = 'CACHE_TTL',
-  TWITTER_WEBHOOK_SECRET = 'TWITTER_WEBHOOK_SECRET',
+  MODERATION_SENSITIVITY = 'MODERATION_SENSITIVITY',
 }
 
 export type ConfigType = 'string' | 'number' | 'boolean' | 'json';
@@ -21,7 +22,8 @@ export class DynamicConfigService {
   private lastRefreshTimestamp: Date | null = null;
   private changeListeners: Map<string, ChangeListener[]> = new Map();
 
-  constructor(private refreshIntervalMs: number = 60000) { // Default 1 minute
+  constructor(private refreshIntervalMs: number = 60000) {
+    // Default 1 minute
     this.refreshCache().catch(console.error);
     this.startPolling();
   }
@@ -45,7 +47,7 @@ export class DynamicConfigService {
    */
   public startPolling(): void {
     if (this.pollingInterval) return;
-    
+
     this.pollingInterval = setInterval(async () => {
       await this.refreshCache();
     }, this.refreshIntervalMs);
@@ -69,11 +71,11 @@ export class DynamicConfigService {
     this.isPollingActive = true;
 
     try {
-      // Note: We use the prisma client. 
+      // Note: We use the prisma client.
       // Ensure the DynamicConfig table exists after the migration.
       const configs = await (prisma as any).dynamicConfig.findMany();
-      
-      const newCache = new Map<string, any>();
+
+      this.cache.clear();
       for (const config of configs) {
         newCache.set(config.key, this.parseValue(config.value, config.type as ConfigType));
       }
@@ -86,14 +88,17 @@ export class DynamicConfigService {
         }
       }
 
-      this.cache = newCache;
-      
       this.lastRefreshTimestamp = new Date();
-      console.log(`[DynamicConfigService] Cache refreshed at ${this.lastRefreshTimestamp.toISOString()}. Loaded ${configs.length} configs.`);
+      console.log(
+        `[DynamicConfigService] Cache refreshed at ${this.lastRefreshTimestamp.toISOString()}. Loaded ${configs.length} configs.`,
+      );
     } catch (error) {
-      // If table doesn't exist yet, we just log it. In a real environment, 
+      // If table doesn't exist yet, we just log it. In a real environment,
       // migrations would handle this before the service starts.
-      console.error('[DynamicConfigService] Failed to refresh config cache:', (error as Error).message);
+      console.error(
+        '[DynamicConfigService] Failed to refresh config cache:',
+        (error as Error).message,
+      );
     } finally {
       this.isPollingActive = false;
     }
@@ -108,7 +113,7 @@ export class DynamicConfigService {
     if (this.cache.has(key)) {
       return this.cache.get(key) as T;
     }
-    
+
     if (defaultValue !== undefined) {
       return defaultValue;
     }
@@ -121,7 +126,12 @@ export class DynamicConfigService {
   /**
    * Sets a configuration value in both database and cache.
    */
-  public async set(key: ConfigKey | string, value: any, type: ConfigType = 'string', description?: string): Promise<void> {
+  public async set(
+    key: ConfigKey | string,
+    value: any,
+    type: ConfigType = 'string',
+    description?: string,
+  ): Promise<void> {
     const stringValue = type === 'json' ? JSON.stringify(value) : String(value);
 
     await (prisma as any).dynamicConfig.upsert({
@@ -166,7 +176,10 @@ export class DynamicConfigService {
         try {
           return JSON.parse(value);
         } catch (e) {
-          console.error(`[DynamicConfigService] Failed to parse JSON value for config: ${value}`, e);
+          console.error(
+            `[DynamicConfigService] Failed to parse JSON value for config: ${value}`,
+            e,
+          );
           return null;
         }
       case 'string':
@@ -200,5 +213,7 @@ export class DynamicConfigService {
   }
 }
 
-// Export a singleton instance
-export const dynamicConfigService = new DynamicConfigService();
+// Export a singleton instance — interval read from env so no code change needed
+export const dynamicConfigService = new DynamicConfigService(
+  config.DYNAMIC_CONFIG_POLL_INTERVAL_MS,
+);

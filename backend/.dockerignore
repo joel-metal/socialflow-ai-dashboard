@@ -1,0 +1,15 @@
+node_modules
+dist
+logs
+*.log
+.env
+.env.*
+!.env.example
+coverage
+.git
+.gitignore
+*.md
+elk
+prisma/migrations
+backend/src/**/__tests__
+**/*.test.ts

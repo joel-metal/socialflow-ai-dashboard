@@ -1,0 +1,77 @@
+version: '3.8'
+
+# Minimal ELK + Prometheus/Grafana stack for local development / staging.
+# Production deployments should use managed services.
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?ELASTIC_PASSWORD must be set and not use default 'changeme'}
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - '9200:9200'
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -s http://localhost:9200/_cluster/health | grep -q "green\|yellow"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.0
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - '5044:5044'
+      - '5000:5000'
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+    environment:
+      - LS_JAVA_OPTS=-Xms256m -Xmx256m
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.0
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - '5601:5601'
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    depends_on:
+      - prometheus
+    ports:
+      - '3001:3000'
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+
+volumes:
+  es_data:
+  prometheus_data:
+  grafana_data:

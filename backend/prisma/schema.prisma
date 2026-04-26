@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -7,18 +8,203 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  passwordHash  String
-  refreshTokens String[]
-  createdAt     DateTime @default(now())
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  passwordHash        String
+  lastPasswordChange  DateTime             @default(now())
+  refreshTokens       String[]
+  role                String               @default("user")
+  listings            Listing[]            @relation("MentorListings")
+  passwordHistory     PasswordHistory[]
+  createdAt           DateTime             @default(now())
+  deletedAt           DateTime?
+  memberships         OrganizationMember[]
+
+  @@index([email])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model PasswordHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hash      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Organization {
+  id        String               @id @default(uuid())
+  name      String
+  slug      String               @unique
+  createdAt DateTime             @default(now())
+  members   OrganizationMember[]
+  posts     Post[]
+  analytics AnalyticsEntry[]
+  listings  Listing[]
+
+  @@index([slug])
+  @@index([createdAt])
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  role           String       @default("member")
+  joinedAt       DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([joinedAt])
+}
+
+model Post {
+  id                String       @id @default(uuid())
+  organizationId    String
+  content           String
+  platform          String
+  scheduledAt       DateTime?
+  moderationStatus  String       @default("pending")
+  createdAt         DateTime     @default(now())
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([platform])
+  @@index([createdAt])
+  @@index([scheduledAt])
+  @@index([moderationStatus])
+}
+
+model AnalyticsEntry {
+  id             String       @id @default(uuid())
+  organizationId String
+  platform       String
+  metric         String
+  value          Float
+  recordedAt     DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([platform])
+  @@index([metric])
+  @@index([recordedAt])
 }
 
 model DynamicConfig {
   key         String   @id
   value       String
-  type        String   @default("string") // string, number, boolean, json
+  type        String   @default("string")
   description String?
   updatedAt   DateTime @updatedAt
 }
 
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  action     String
+  resource   String?
+  resourceId String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([resource, resourceId])
+}
+
+model AIGenerationResult {
+  id             String   @id @default(uuid())
+  jobId          String   @unique
+  userId         String
+  organizationId String?
+  jobType        String
+  output         Json
+  traceId        String?
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([jobType])
+  @@index([createdAt])
+}
+
+model Listing {
+  id             String        @id @default(uuid())
+  title          String
+  description    String
+  price          Float?
+  isActive       Boolean       @default(true)
+  mentorId       String
+  mentor         User          @relation("MentorListings", fields: [mentorId], references: [id])
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  @@index([mentorId])
+  @@index([organizationId])
+  @@index([isActive])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model WebhookSubscription {
+  id        String            @id @default(uuid())
+  userId    String?
+  url       String
+  secret    String
+  events    String[]
+  isActive  Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  deliveries WebhookDelivery[]
+
+  @@index([isActive])
+  @@index([userId])
+}
+
+model WebhookDelivery {
+  id             String              @id @default(uuid())
+  subscriptionId String
+  subscription   WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  eventType      String
+  payload        String
+  status         String              @default("pending")
+  attempts       Int                 @default(0)
+  nextRetryAt    DateTime?
+  lastError      String?
+  errorMessage   String?
+  responseStatus Int?
+  responseBody   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([subscriptionId])
+  @@index([status, nextRetryAt])
+  @@index([createdAt])
+}
+
+/// Audit record written whenever a payout job fails.
+/// Captures the failure reason and timestamp for operational review.
+model PayoutFailure {
+  id          String   @id @default(uuid())
+  jobId       String
+  groupId     String
+  recipient   String
+  amount      Float
+  currency    String
+  reason      String
+  failedAt    DateTime @default(now())
+
+  @@index([jobId])
+  @@index([groupId])
+  @@index([failedAt])
+}

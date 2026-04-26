@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { SmartContractService } from '../services/SmartContractService';
 import { walletService, WalletInfo } from '../services/WalletService';
 import { ContractCallType, ContractInvocationResult } from '../types/soroban';
@@ -17,6 +17,19 @@ export function useSorobanContract(
     const [wallet, setWallet] = useState<WalletInfo | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    /**
+     * Setup wallet disconnect listener
+     */
+    useEffect(() => {
+        const unsubscribe = walletService.onDisconnect(() => {
+            setWallet(null);
+            setIsLoading(false);
+            setError('Wallet disconnected. Please reconnect to continue.');
+        });
+
+        return unsubscribe;
+    }, []);
 
     /**
      * Connect wallet
@@ -48,6 +61,7 @@ export function useSorobanContract(
     const disconnectWallet = useCallback(() => {
         walletService.disconnect();
         setWallet(null);
+        setError(null);
     }, []);
 
     /**
@@ -99,7 +113,21 @@ export function useSorobanContract(
 
             try {
                 const signTransaction = async (xdrString: string) => {
-                    return await walletService.signTransaction(xdrString, network.toLowerCase());
+                    try {
+                        return await walletService.signTransaction(xdrString, network.toLowerCase());
+                    } catch (signError) {
+                        // Check if wallet was disconnected during signing
+                        if (!walletService.isConnected()) {
+                            setWallet(null);
+                            setIsLoading(false);
+                            setError('Wallet disconnected during transaction signing. Please reconnect and try again.');
+                            throw new AppError(
+                                ErrorCode.ERR_WALLET_NOT_CONNECTED,
+                                'Wallet disconnected mid-transaction'
+                            );
+                        }
+                        throw signError;
+                    }
                 };
 
                 const result = await contractService.invoke(
@@ -118,6 +146,8 @@ export function useSorobanContract(
                         throw new AppError(ErrorCode.ERR_TRANSACTION_FAILED, 'Transaction ran out of gas. Please try again with higher limits.');
                     } else if (result.errorType === 'SIMULATION_FAILED') {
                         throw new AppError(ErrorCode.ERR_TRANSACTION_FAILED, `Simulation failed: ${errorMessage}`);
+                    } else if (result.errorType === 'SERVICE_UNAVAILABLE') {
+                        throw new AppError(ErrorCode.ERR_TRANSACTION_FAILED, `Service unavailable: ${errorMessage}`);
                     } else {
                         throw new AppError(ErrorCode.ERR_TRANSACTION_FAILED, errorMessage);
                     }

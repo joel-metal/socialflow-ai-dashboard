@@ -4,8 +4,46 @@ import { translationService } from '../services/TranslationService';
 const router = Router();
 
 /**
- * POST /api/translation/translate
- * Translate content to multiple languages
+ * @openapi
+ * /translation/translate:
+ *   post:
+ *     tags: [Translation]
+ *     summary: Translate content to one or more languages
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [text, targetLanguages]
+ *             properties:
+ *               text:
+ *                 type: string
+ *               sourceLanguage:
+ *                 type: string
+ *                 description: BCP-47 language code (auto-detected if omitted)
+ *               targetLanguages:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 minItems: 1
+ *               preserveFormatting:
+ *                 type: boolean
+ *               preserveHashtags:
+ *                 type: boolean
+ *               preserveMentions:
+ *                 type: boolean
+ *               preserveUrls:
+ *                 type: boolean
+ *               preserveEmojis:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Translation result
+ *       400:
+ *         description: Validation error
+ *       500:
+ *         description: Translation failed
  */
 router.post('/translate', async (req: Request, res: Response) => {
   try {
@@ -21,14 +59,14 @@ router.post('/translate', async (req: Request, res: Response) => {
     } = req.body;
 
     if (!text || !targetLanguages || !Array.isArray(targetLanguages)) {
-      return res.status(400).json({ 
-        error: 'Text and targetLanguages array are required' 
+      return res.status(400).json({
+        error: 'Text and targetLanguages array are required',
       });
     }
 
     if (targetLanguages.length === 0) {
-      return res.status(400).json({ 
-        error: 'At least one target language is required' 
+      return res.status(400).json({
+        error: 'At least one target language is required',
       });
     }
 
@@ -51,8 +89,27 @@ router.post('/translate', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/translation/languages
- * Get list of supported languages
+ * @openapi
+ * /translation/languages:
+ *   get:
+ *     tags: [Translation]
+ *     summary: Get list of supported languages
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Supported languages
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 languages:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       code: { type: string }
+ *                       name: { type: string }
  */
 router.get('/languages', (req: Request, res: Response) => {
   try {
@@ -65,8 +122,33 @@ router.get('/languages', (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/translation/detect
- * Detect language of text
+ * @openapi
+ * /translation/detect:
+ *   post:
+ *     tags: [Translation]
+ *     summary: Detect the language of a text
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [text]
+ *             properties:
+ *               text:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Detected language
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 detectedLanguage: { type: string }
+ *                 languageName: { type: string }
+ *       400:
+ *         description: Text is required
  */
 router.post('/detect', async (req: Request, res: Response) => {
   try {
@@ -84,8 +166,9 @@ router.post('/detect', async (req: Request, res: Response) => {
 
     res.json({
       detectedLanguage: result.sourceLanguage,
-      languageName: translationService.getSupportedLanguages()
-        .find(l => l.code === result.sourceLanguage)?.name || result.sourceLanguage,
+      languageName:
+        translationService.getSupportedLanguages().find((l) => l.code === result.sourceLanguage)
+          ?.name || result.sourceLanguage,
     });
   } catch (error) {
     console.error('Detection error:', error);
@@ -94,8 +177,43 @@ router.post('/detect', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/translation/batch
- * Translate multiple texts at once
+ * @openapi
+ * /translation/batch:
+ *   post:
+ *     tags: [Translation]
+ *     summary: Translate multiple texts at once
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [texts, targetLanguages]
+ *             properties:
+ *               texts:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               sourceLanguage:
+ *                 type: string
+ *               targetLanguages:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Batch translation results
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 translations:
+ *                   type: array
+ *                 totalTexts: { type: integer }
+ *                 duration: { type: integer }
+ *       400:
+ *         description: Validation error
  */
 router.post('/batch', async (req: Request, res: Response) => {
   try {
@@ -135,8 +253,32 @@ router.post('/batch', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/translation/providers
- * Get available translation providers and their status
+ * @openapi
+ * /translation/providers:
+ *   get:
+ *     tags: [Translation]
+ *     summary: Get available translation providers and their status
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Provider list
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 providers:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       name: { type: string }
+ *                       available: { type: boolean }
+ *                       characterLimit: { type: integer }
+ *                       languages:
+ *                         type: array
+ *                         items:
+ *                           type: string
  */
 router.get('/providers', (req: Request, res: Response) => {
   try {
@@ -151,7 +293,7 @@ router.get('/providers', (req: Request, res: Response) => {
         name: 'Google Translate',
         available: !!process.env.GOOGLE_TRANSLATE_API_KEY,
         characterLimit: 100000,
-        languages: translationService.getSupportedLanguages().map(l => l.code),
+        languages: translationService.getSupportedLanguages().map((l) => l.code),
       },
     ];
 

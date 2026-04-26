@@ -1,9 +1,12 @@
 import { Queue, Worker } from 'bullmq';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { getDataRetentionConfig, getRedisConnection } from '../config/runtime';
 import { createLogger } from '../lib/logger';
+import { filesPrunedTotal, filesArchivedTotal } from '../lib/metrics';
 import { runDataPruning } from '../retention/dataPruningService';
 
 const logger = createLogger('data-pruning-job');
+const tracer = trace.getTracer('socialflow-jobs');
 
 const DATA_PRUNING_JOB_NAME = 'data-pruning-execution';
 const DATA_PRUNING_REPEAT_JOB_ID = 'data-pruning-repeat-scheduler';
@@ -27,7 +30,26 @@ export const startDataPruningJob = async (): Promise<void> => {
     worker = new Worker(
       config.queueName,
       async () => {
-        return runDataPruning();
+        const span = tracer.startSpan('data-pruning.run');
+        try {
+          const summary = await runDataPruning();
+          filesPrunedTotal.inc(summary.deletedFiles);
+          filesArchivedTotal.inc(summary.archivedFiles);
+          span.setAttributes({
+            'pruning.deleted_files': summary.deletedFiles,
+            'pruning.archived_files': summary.archivedFiles,
+            'pruning.scanned_files': summary.scannedFiles,
+            'pruning.error_count': summary.errors.length,
+          });
+          span.setStatus({ code: SpanStatusCode.OK });
+          return summary;
+        } catch (err) {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: err instanceof Error ? err.message : String(err) });
+          span.recordException(err as Error);
+          throw err;
+        } finally {
+          span.end();
+        }
       },
       {
         connection: getRedisConnection(),

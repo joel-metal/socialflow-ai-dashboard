@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { dynamicConfigService, ConfigKey, ConfigType } from '../services/DynamicConfigService';
+import { dynamicConfigService, ConfigType } from '../services/DynamicConfigService';
 import { authMiddleware } from '../middleware/authMiddleware';
+import { checkPermission } from '../middleware/checkPermission';
 
 const router = Router();
 
@@ -9,11 +10,11 @@ const router = Router();
  * @desc Get all configuration values from cache
  * @access Private/Admin
  */
-router.get('/', authMiddleware, async (req: Request, res: Response) => {
+router.get('/', authMiddleware, checkPermission('settings:manage'), async (req: Request, res: Response) => {
   try {
     const status = dynamicConfigService.getStatus();
     const configs: Record<string, any> = {};
-    
+
     for (const key of status.cachedKeys) {
       configs[key] = dynamicConfigService.get(key);
     }
@@ -33,7 +34,7 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
  * @desc Manually refresh the configuration cache from the database
  * @access Private/Admin
  */
-router.post('/refresh', authMiddleware, async (req: Request, res: Response) => {
+router.post('/refresh', authMiddleware, checkPermission('settings:manage'), async (req: Request, res: Response) => {
   try {
     await dynamicConfigService.refreshCache();
     res.json({ success: true, message: 'Configuration cache refreshed successfully' });
@@ -47,7 +48,7 @@ router.post('/refresh', authMiddleware, async (req: Request, res: Response) => {
  * @desc Update or create a configuration value
  * @access Private/Admin
  */
-router.put('/:key', authMiddleware, async (req: Request, res: Response) => {
+router.put('/:key', authMiddleware, checkPermission('settings:manage'), async (req: Request, res: Response) => {
   const { key } = req.params;
   const { value, type, description } = req.body;
 

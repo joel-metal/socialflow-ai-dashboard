@@ -14,7 +14,7 @@ import { Request, Response } from 'express';
 
 // Register a protected test route once at module load time
 app.get('/api/test/protected', authMiddleware, (_req: Request, res: Response) =>
-  res.json({ ok: true })
+  res.json({ ok: true }),
 );
 
 // ─── Password hashing ────────────────────────────────────────────────────────
@@ -150,9 +150,7 @@ describe('POST /api/auth/refresh', () => {
   });
 
   it('issues new tokens for a valid refresh token', async () => {
-    const res = await request(app)
-      .post('/api/auth/refresh')
-      .send({ refreshToken });
+    const res = await request(app).post('/api/auth/refresh').send({ refreshToken });
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('accessToken');
@@ -162,9 +160,7 @@ describe('POST /api/auth/refresh', () => {
   });
 
   it('rejects an invalid refresh token', async () => {
-    const res = await request(app)
-      .post('/api/auth/refresh')
-      .send({ refreshToken: 'garbage' });
+    const res = await request(app).post('/api/auth/refresh').send({ refreshToken: 'garbage' });
 
     expect(res.status).toBe(401);
   });
@@ -179,9 +175,7 @@ describe('POST /api/auth/refresh', () => {
     await request(app).post('/api/auth/refresh').send({ refreshToken: oldToken });
 
     // Attempt to reuse the old token
-    const res = await request(app)
-      .post('/api/auth/refresh')
-      .send({ refreshToken: oldToken });
+    const res = await request(app).post('/api/auth/refresh').send({ refreshToken: oldToken });
 
     expect(res.status).toBe(401);
   });
@@ -196,16 +190,12 @@ describe('POST /api/auth/logout', () => {
       .send({ email: 'grace@example.com', password: 'ValidPass1!' });
     const { refreshToken } = reg.body;
 
-    const res = await request(app)
-      .post('/api/auth/logout')
-      .send({ refreshToken });
+    const res = await request(app).post('/api/auth/logout').send({ refreshToken });
 
     expect(res.status).toBe(204);
 
     // Token should no longer work
-    const retry = await request(app)
-      .post('/api/auth/refresh')
-      .send({ refreshToken });
+    const retry = await request(app).post('/api/auth/refresh').send({ refreshToken });
     expect(retry.status).toBe(401);
   });
 });

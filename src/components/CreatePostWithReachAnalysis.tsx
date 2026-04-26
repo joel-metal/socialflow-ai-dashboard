@@ -5,6 +5,13 @@ import { ReachScoreWidget } from './ReachScoreWidget';
 import { usePredictiveReach } from '../hooks/usePredictiveReach';
 import { PostAnalysisInput } from '../types/predictive';
 
+const PLATFORM_CHAR_LIMITS: Record<Platform, number> = {
+  [Platform.TWITTER]: 280,
+  [Platform.LINKEDIN]: 3000,
+  [Platform.FACEBOOK]: 63206,
+  [Platform.INSTAGRAM]: 2200,
+};
+
 const MaterialIcon = ({ name, className }: { name: string, className?: string }) => (
   <span className={`material-symbols-outlined ${className}`}>{name}</span>
 );
@@ -54,6 +61,12 @@ export const CreatePostWithReachAnalysis: React.FC<ViewProps> = ({ onNavigate })
     if (score >= 40) return 'text-yellow-400';
     return 'text-red-400';
   };
+
+  // Per-platform character limit enforcement
+  const activeLimits = selectedPlatforms.map(p => ({ platform: p, limit: PLATFORM_CHAR_LIMITS[p] ?? Infinity }));
+  const overLimitPlatforms = activeLimits.filter(({ limit }) => caption.length > limit);
+  const isOverLimit = overLimitPlatforms.length > 0;
+  const strictestLimit = activeLimits.reduce((min, { limit }) => Math.min(min, limit), Infinity);
 
   return (
     <div className="p-7 max-w-7xl mx-auto animate-fade-in">
@@ -140,8 +153,13 @@ export const CreatePostWithReachAnalysis: React.FC<ViewProps> = ({ onNavigate })
               placeholder="Write your caption here... Use #hashtags for better reach"
             />
             <div className="mt-3 flex justify-between items-center text-xs">
-              <span className="text-gray-subtext">
-                {caption.length} characters • {hashtags.length} hashtags
+              <span className={isOverLimit ? 'text-red-400 font-semibold' : 'text-gray-subtext'}>
+                {caption.length}{strictestLimit !== Infinity ? `/${strictestLimit}` : ''} characters • {hashtags.length} hashtags
+                {overLimitPlatforms.length > 0 && (
+                  <span className="ml-2">
+                    — over limit for: {overLimitPlatforms.map(p => p.platform).join(', ')}
+                  </span>
+                )}
               </span>
               {loading && (
                 <span className="text-primary-blue flex items-center gap-2">
@@ -201,9 +219,10 @@ export const CreatePostWithReachAnalysis: React.FC<ViewProps> = ({ onNavigate })
           </Card>
 
           <button 
-            className="w-full bg-primary-blue text-white px-6 py-3 rounded-2xl text-sm font-medium hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all"
+            disabled={isOverLimit}
+            className="w-full bg-primary-blue text-white px-6 py-3 rounded-2xl text-sm font-medium hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-blue"
           >
-            Schedule Post
+            {isOverLimit ? `Over character limit (${overLimitPlatforms.map(p => p.platform).join(', ')})` : 'Schedule Post'}
           </button>
         </div>
 

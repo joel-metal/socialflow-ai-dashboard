@@ -4,6 +4,9 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import jwt from 'jsonwebtoken';
 import { createLogger } from '../lib/logger';
+import { config } from '../config/config';
+import { getRedisConnection } from '../config/runtime';
+import { eventBus, JobProgressEvent } from '../lib/eventBus';
 
 const logger = createLogger('SocketService');
 
@@ -14,8 +17,9 @@ interface AuthenticatedSocket extends Socket {
 export class SocketService {
   private static instance: SocketService;
   private io?: Server;
+  private jobProgressListener?: (event: JobProgressEvent) => void;
 
-  private constructor() { }
+  private constructor() {}
 
   /**
    * Returns the singleton instance of the SocketService
@@ -35,36 +39,50 @@ export class SocketService {
     this.io = new Server(httpServer, {
       cors: {
         origin: '*', // To be restricted in production
-        methods: ['GET', 'POST']
-      }
+        methods: ['GET', 'POST'],
+      },
     });
 
     // Configure Redis Adapter
-    const host = process.env.REDIS_HOST || 'localhost';
-    const port = parseInt(process.env.REDIS_PORT || '6379', 10);
-    const pubClient = new Redis({ host, port });
+    const pubClient = new Redis(getRedisConnection());
     const subClient = pubClient.duplicate();
     this.io.adapter(createAdapter(pubClient, subClient));
+
+    // Listen to job progress events and emit to user rooms
+    this.jobProgressListener = (event: JobProgressEvent) => {
+      const room = `user:${event.userId}`;
+      this.io?.to(room).emit('job_progress', event);
+    };
+    eventBus.on('job:*', this.jobProgressListener);
 
     // Authenticated connection middleware
     this.io.use((socket: AuthenticatedSocket, next) => {
       // First try to grab token from auth payload, fallback to Authorization header
-      const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
+      const token =
+        socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
       if (!token) {
         return next(new Error('Authentication error'));
       }
       try {
-        const secret = process.env.JWT_SECRET || 'secret'; // Use existing JWT secret from environment
+        const secret = config.JWT_SECRET;
         const decoded = jwt.verify(token, secret);
         socket.user = decoded;
         next();
-      } catch (err) {
+      } catch (_err) {
         next(new Error('Authentication error'));
       }
     });
 
     this.io.on('connection', (socket: AuthenticatedSocket) => {
       logger.info(`Authorized connection from ${socket.id}`);
+
+      // Join user-specific room for job progress
+      const userId = socket.user?.sub;
+      if (userId) {
+        const userRoom = `user:${userId}`;
+        socket.join(userRoom);
+        logger.info(`Client ${socket.id} joined room ${userRoom}`);
+      }
 
       // Auto-join specific namespace or org-based rooms based on client query
       const orgId = socket.handshake.query.orgId as string;

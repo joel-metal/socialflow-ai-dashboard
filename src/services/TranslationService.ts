@@ -8,7 +8,7 @@ import {
   TranslationProvider,
   BatchTranslationRequest,
   BatchTranslationResult,
-} from '../types/translation';
+} from '@socialflow/shared';
 
 /**
  * TranslationService - Multi-language content translation

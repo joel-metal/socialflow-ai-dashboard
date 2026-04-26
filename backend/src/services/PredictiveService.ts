@@ -5,11 +5,12 @@ import {
   HistoricalPerformance,
   TrendAnalysis,
   MLModelMetrics,
+  PlatformMedians,
 } from '../types/predictive';
 
 /**
  * PredictiveService - ML-based reach analysis for social media posts
- * 
+ *
  * Analyzes posts based on:
  * - Content analysis (sentiment, keywords, topics)
  * - Timing optimization (day of week, hour of day)
@@ -28,12 +29,7 @@ class PredictiveService {
    * Predict reach for a post
    */
   public async predictReach(input: PostAnalysisInput): Promise<ReachPrediction> {
-    const [
-      contentFactors,
-      timingFactors,
-      historicalFactors,
-      trendAnalysis,
-    ] = await Promise.all([
+    const [contentFactors, timingFactors, historicalFactors, trendAnalysis] = await Promise.all([
       this.analyzeContent(input),
       this.analyzeTimingFactors(input),
       this.analyzeHistoricalPerformance(input),
@@ -98,7 +94,11 @@ class PredictiveService {
       });
     }
 
-    const emojiCount = (input.content.match(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu) || []).length;
+    const emojiCount = (
+      input.content.match(
+        /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu,
+      ) || []
+    ).length;
     if (emojiCount >= 1 && emojiCount <= 5) {
       factors.push({
         name: 'Emoji Usage',
@@ -108,8 +108,18 @@ class PredictiveService {
       });
     }
 
-    const ctaKeywords = ['click', 'link', 'bio', 'comment', 'share', 'tag', 'follow', 'subscribe', 'join'];
-    const hasCTA = ctaKeywords.some(keyword => input.content.toLowerCase().includes(keyword));
+    const ctaKeywords = [
+      'click',
+      'link',
+      'bio',
+      'comment',
+      'share',
+      'tag',
+      'follow',
+      'subscribe',
+      'join',
+    ];
+    const hasCTA = ctaKeywords.some((keyword) => input.content.toLowerCase().includes(keyword));
     if (hasCTA) {
       factors.push({
         name: 'Call to Action',
@@ -192,10 +202,10 @@ class PredictiveService {
     }
 
     if (input.hashtags) {
-      const effectiveHashtags = input.hashtags.filter(tag =>
-        historical.topHashtags.includes(tag.toLowerCase().replace('#', ''))
+      const effectiveHashtags = input.hashtags.filter((tag) =>
+        historical.topHashtags.includes(tag.toLowerCase().replace('#', '')),
       );
-      
+
       if (effectiveHashtags.length > 0) {
         factors.push({
           name: 'Hashtag Effectiveness',
@@ -215,8 +225,8 @@ class PredictiveService {
   private async analyzeTrends(input: PostAnalysisInput): Promise<TrendAnalysis> {
     const keywords = this.extractKeywords(input.content);
     const trendingTopics = await this.getTrendingTopics(input.platform);
-    const matchingTopics = keywords.filter(kw => 
-      trendingTopics.some(topic => topic.toLowerCase().includes(kw.toLowerCase()))
+    const matchingTopics = keywords.filter((kw) =>
+      trendingTopics.some((topic) => topic.toLowerCase().includes(kw.toLowerCase())),
     );
 
     const trendScore = Math.min(100, matchingTopics.length * 25);
@@ -235,7 +245,7 @@ class PredictiveService {
   private calculateReachScore(factors: ReachFactor[], trends: TrendAnalysis): number {
     let score = 50;
 
-    factors.forEach(factor => {
+    factors.forEach((factor) => {
       const impact = factor.impact === 'positive' ? 1 : factor.impact === 'negative' ? -1 : 0;
       score += impact * factor.weight * 50;
     });
@@ -251,13 +261,13 @@ class PredictiveService {
   private calculateReachEstimate(
     reachScore: number,
     followerCount: number,
-    platform: string
+    platform: string,
   ): { min: number; max: number; expected: number } {
     const platformMultipliers: Record<string, number> = {
       instagram: 0.15,
       tiktok: 0.25,
-      facebook: 0.10,
-      youtube: 0.20,
+      facebook: 0.1,
+      youtube: 0.2,
       linkedin: 0.08,
       x: 0.12,
     };
@@ -279,14 +289,16 @@ class PredictiveService {
   private generateRecommendations(
     factors: ReachFactor[],
     trends: TrendAnalysis,
-    input: PostAnalysisInput
+    input: PostAnalysisInput,
   ): string[] {
     const recommendations: string[] = [];
 
-    const negativeFactors = factors.filter(f => f.impact === 'negative');
-    negativeFactors.forEach(factor => {
+    const negativeFactors = factors.filter((f) => f.impact === 'negative');
+    negativeFactors.forEach((factor) => {
       if (factor.name === 'Content Length') {
-        recommendations.push('Consider expanding your content to 10-50 words for better engagement');
+        recommendations.push(
+          'Consider expanding your content to 10-50 words for better engagement',
+        );
       } else if (factor.name === 'Posting Time') {
         const optimalHours = this.getOptimalPostingHours(input.platform);
         recommendations.push(`Post during peak hours: ${optimalHours.join(', ')}:00`);
@@ -296,13 +308,17 @@ class PredictiveService {
     });
 
     if (trends.trending && trends.relatedTopics.length > 0) {
-      recommendations.push(`Leverage trending topics: ${trends.relatedTopics.slice(0, 3).join(', ')}`);
+      recommendations.push(
+        `Leverage trending topics: ${trends.relatedTopics.slice(0, 3).join(', ')}`,
+      );
     }
 
     if (!input.hashtags || input.hashtags.length < 3) {
       const historical = this.historicalData.get(input.platform);
       if (historical && historical.topHashtags.length > 0) {
-        recommendations.push(`Add trending hashtags: #${historical.topHashtags.slice(0, 3).join(', #')}`);
+        recommendations.push(
+          `Add trending hashtags: #${historical.topHashtags.slice(0, 3).join(', #')}`,
+        );
       }
     }
 
@@ -358,7 +374,7 @@ class PredictiveService {
     const now = new Date();
     const currentHour = now.getHours();
 
-    let nextOptimalHour = optimalHours.find(h => h > currentHour);
+    let nextOptimalHour = optimalHours.find((h) => h > currentHour);
     if (!nextOptimalHour) {
       nextOptimalHour = optimalHours[0];
     }
@@ -376,13 +392,31 @@ class PredictiveService {
    * Extract keywords
    */
   private extractKeywords(content: string): string[] {
-    const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'is', 'are', 'was', 'were']);
-    
+    const commonWords = new Set([
+      'the',
+      'a',
+      'an',
+      'and',
+      'or',
+      'but',
+      'in',
+      'on',
+      'at',
+      'to',
+      'for',
+      'of',
+      'with',
+      'is',
+      'are',
+      'was',
+      'were',
+    ]);
+
     const words = content
       .toLowerCase()
       .replace(/[^\w\s]/g, '')
       .split(/\s+/)
-      .filter(word => word.length > 3 && !commonWords.has(word));
+      .filter((word) => word.length > 3 && !commonWords.has(word));
 
     return [...new Set(words)].slice(0, 10);
   }
@@ -451,12 +485,13 @@ class PredictiveService {
   }
 
   /**
-   * Initialize default historical data
+   * Initialize default historical data (hardcoded fallback values).
+   * Call seedFromMedians() to replace these with platform-wide medians.
    */
   private initializeDefaultHistoricalData(): void {
     const platforms = ['instagram', 'tiktok', 'facebook', 'youtube', 'linkedin', 'x'];
-    
-    platforms.forEach(platform => {
+
+    platforms.forEach((platform) => {
       this.historicalData.set(platform, {
         platform,
         avgReach: this.getDefaultFollowerCount(platform) * 0.15,
@@ -471,6 +506,19 @@ class PredictiveService {
         },
       });
     });
+  }
+
+  /**
+   * Seed historical defaults from pre-computed platform medians.
+   * Only fields present in the medians map are overwritten; the rest keep their current values.
+   */
+  public seedFromMedians(medians: PlatformMedians): void {
+    for (const [platform, values] of Object.entries(medians)) {
+      const existing = this.historicalData.get(platform);
+      if (!existing) continue;
+      if (values.avgReach !== undefined) existing.avgReach = values.avgReach;
+      if (values.avgEngagement !== undefined) existing.avgEngagement = values.avgEngagement;
+    }
   }
 
   /**
@@ -497,20 +545,20 @@ class PredictiveService {
     actualReach: number,
     engagement: number,
     contentType: string,
-    hashtags: string[]
+    hashtags: string[],
   ): void {
     const historical = this.historicalData.get(platform);
     if (!historical) return;
 
-    historical.avgReach = (historical.avgReach * 0.9) + (actualReach * 0.1);
-    historical.avgEngagement = (historical.avgEngagement * 0.9) + (engagement * 0.1);
+    historical.avgReach = historical.avgReach * 0.9 + actualReach * 0.1;
+    historical.avgEngagement = historical.avgEngagement * 0.9 + engagement * 0.1;
 
     if (contentType) {
       const currentPerf = historical.contentTypePerformance[contentType] || 0;
-      historical.contentTypePerformance[contentType] = (currentPerf * 0.9) + (engagement * 0.1);
+      historical.contentTypePerformance[contentType] = currentPerf * 0.9 + engagement * 0.1;
     }
 
-    hashtags.forEach(tag => {
+    hashtags.forEach((tag) => {
       const cleanTag = tag.toLowerCase().replace('#', '');
       if (!historical.topHashtags.includes(cleanTag)) {
         historical.topHashtags.push(cleanTag);
@@ -536,7 +584,7 @@ class PredictiveService {
    */
   private calculateTotalSamples(): number {
     let total = 0;
-    this.historicalData.forEach(data => {
+    this.historicalData.forEach((data) => {
       total += Object.keys(data.contentTypePerformance).length * 100;
     });
     return total;
@@ -546,7 +594,7 @@ class PredictiveService {
    * Batch predict
    */
   public async batchPredict(inputs: PostAnalysisInput[]): Promise<ReachPrediction[]> {
-    return Promise.all(inputs.map(input => this.predictReach(input)));
+    return Promise.all(inputs.map((input) => this.predictReach(input)));
   }
 
   /**
@@ -554,7 +602,7 @@ class PredictiveService {
    */
   public async comparePosts(
     postA: PostAnalysisInput,
-    postB: PostAnalysisInput
+    postB: PostAnalysisInput,
   ): Promise<{ postA: ReachPrediction; postB: ReachPrediction; winner: 'A' | 'B' | 'tie' }> {
     const [predictionA, predictionB] = await Promise.all([
       this.predictReach(postA),
