@@ -1,6 +1,6 @@
 import { createLogger } from '../lib/logger';
 import { prisma } from '../lib/prisma';
-import { AuditAction } from '../models/AuditLog';
+import { AuditAction, AuditLogStore } from '../models/AuditLog';
 
 const logger = createLogger('audit');
 
@@ -22,6 +22,17 @@ export interface AuditContext {
  */
 class AuditLogger {
   async log(ctx: AuditContext): Promise<void> {
+    // Always write to the in-memory store (used by tests and audit query endpoints)
+    AuditLogStore.append({
+      actorId: ctx.actorId,
+      action: ctx.action,
+      resourceType: ctx.resourceType,
+      resourceId: ctx.resourceId,
+      metadata: ctx.metadata,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
+
     try {
       await prisma.auditLog.create({
         data: {
