@@ -98,6 +98,7 @@ class VideoService {
 
     for (const quality of job.qualities) {
       for (const format of job.formats) {
+        const outputPath = path.join(job.outputDir, `video_${quality.name}.${format.extension}`);
         try {
           const output = await this.transcodeVideo(job, quality, format);
           outputs.push(output);
@@ -105,6 +106,7 @@ class VideoService {
           const progress = Math.round((completedTasks / totalTasks) * 100);
           this.updateJobProgress(jobId, progress, userId);
         } catch (error) {
+          await fs.rm(outputPath, { force: true }).catch(() => {});
           console.error(`Failed to transcode ${quality.name} ${format.extension}:`, error);
         }
       }
@@ -164,6 +166,7 @@ class VideoService {
         })
         .on('error', (err: Error) => {
           console.error(`Error transcoding ${outputFilename}:`, err);
+          fs.rm(outputPath, { force: true }).catch(() => {});
           reject(err);
         })
         .save(outputPath);
