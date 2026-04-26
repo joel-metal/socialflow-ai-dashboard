@@ -18,6 +18,10 @@ jest.mock('../queues/queueManager', () => ({
     retryJob: jest.fn(),
     removeJob: jest.fn(),
   },
+  redisClient: {
+    exists: jest.fn().mockResolvedValue(0),
+    set: jest.fn().mockResolvedValue('OK'),
+  },
 }));
 
 jest.mock('../services/CohortService', () => ({
