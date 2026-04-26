@@ -1,5 +1,6 @@
 import { queueManager } from './queueManager';
 import { enqueue, enqueueAt } from '../utils/queue';
+import { captureTraceContext, SerializedTraceContext } from '../lib/traceContext';
 
 export const AI_QUEUE_NAME = 'ai-generation';
 
@@ -16,6 +17,8 @@ export interface AIJobData {
   userId: string;
   organizationId?: string;
   options?: Record<string, unknown>;
+  /** W3C trace context captured at enqueue time; used to link job spans to the originating HTTP span. */
+  traceContext?: SerializedTraceContext;
 }
 
 // High-priority queue: 5 attempts with exponential backoff, keep last 200 failures for review
@@ -27,7 +30,7 @@ export const aiQueue = queueManager.createQueue(AI_QUEUE_NAME, {
 });
 
 export const enqueueAIJob = (data: AIJobData, priority = 1) =>
-  enqueue<AIJobData>(AI_QUEUE_NAME, data.type, data, { priority });
+  enqueue<AIJobData>(AI_QUEUE_NAME, data.type, { ...data, traceContext: captureTraceContext() }, { priority });
 
 export const scheduleAIJob = (data: AIJobData, at: Date) =>
   enqueueAt<AIJobData>(AI_QUEUE_NAME, data.type, data, at);
