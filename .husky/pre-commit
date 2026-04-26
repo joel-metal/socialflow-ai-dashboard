@@ -1,4 +1,8 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
+# Regenerate TypeScript client from OpenAPI spec and stage any changes
+npm run generate-client
+git add src/api/
+
 npx lint-staged

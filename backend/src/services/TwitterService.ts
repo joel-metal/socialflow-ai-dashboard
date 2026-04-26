@@ -1,4 +1,8 @@
 import { circuitBreakerService } from './CircuitBreakerService';
+import { LockService } from '../utils/LockService';
+import { createLogger } from '../lib/logger';
+
+const logger = createLogger('twitter-service');
 
 /**
  * Twitter API Response Types
@@ -31,7 +35,7 @@ export interface TwitterPostRequest {
 
 /**
  * TwitterService - Wrapper for Twitter API with circuit breaker protection
- * 
+ *
  * Provides resilient Twitter operations with automatic failure handling.
  * Prevents cascading failures when Twitter API is down or rate-limited.
  */
@@ -58,31 +62,33 @@ class TwitterService {
       throw new Error('Twitter API not configured. Please set TWITTER_BEARER_TOKEN.');
     }
 
-    return circuitBreakerService.execute(
-      'twitter',
-      async () => {
-        const response = await fetch(`${this.API_BASE}/tweets`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${this.bearerToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(request),
-        });
+    return LockService.withLock('twitter:post', async () => {
+      return circuitBreakerService.execute(
+        'twitter',
+        async () => {
+          const response = await fetch(`${this.API_BASE}/tweets`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${this.bearerToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(request),
+          });
 
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(`Twitter API error: ${response.status} - ${JSON.stringify(error)}`);
-        }
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`Twitter API error: ${response.status} - ${JSON.stringify(error)}`);
+          }
 
-        const data = await response.json();
-        return data.data;
-      },
-      async () => {
-        // Fallback: Queue for later or throw
-        throw new Error('Twitter API temporarily unavailable. Post has been queued for retry.');
-      }
-    );
+          const data = await response.json() as any;
+          return data.data;
+        },
+        async () => {
+          // Fallback: Queue for later or throw
+          throw new Error('Twitter API temporarily unavailable. Post has been queued for retry.');
+        },
+      );
+    });
   }
 
   /**
@@ -100,23 +106,23 @@ class TwitterService {
           `${this.API_BASE}/users/${userId}/tweets?max_results=${maxResults}&tweet.fields=created_at,public_metrics`,
           {
             headers: {
-              'Authorization': `Bearer ${this.bearerToken}`,
+              Authorization: `Bearer ${this.bearerToken}`,
             },
-          }
+          },
         );
 
         if (!response.ok) {
           throw new Error(`Twitter API error: ${response.status}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as any;
         return data.data || [];
       },
       async () => {
         // Fallback: return empty array
-        console.warn('Twitter circuit breaker open, returning empty timeline');
+        logger.warn('Circuit breaker open, returning empty timeline', { service: 'twitter', state: 'open' });
         return [];
-      }
+      },
     );
   }
 
@@ -135,23 +141,23 @@ class TwitterService {
           `${this.API_BASE}/users/by/username/${username}?user.fields=profile_image_url`,
           {
             headers: {
-              'Authorization': `Bearer ${this.bearerToken}`,
+              Authorization: `Bearer ${this.bearerToken}`,
             },
-          }
+          },
         );
 
         if (!response.ok) {
           throw new Error(`Twitter API error: ${response.status}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as any;
         return data.data;
       },
       async () => {
         // Fallback: return null
-        console.warn('Twitter circuit breaker open, returning null user');
+        logger.warn('Circuit breaker open, returning null user', { service: 'twitter', state: 'open' });
         return null;
-      }
+      },
     );
   }
 
@@ -170,23 +176,23 @@ class TwitterService {
           `${this.API_BASE}/tweets/search/recent?query=${encodeURIComponent(query)}&max_results=${maxResults}&tweet.fields=created_at,public_metrics`,
           {
             headers: {
-              'Authorization': `Bearer ${this.bearerToken}`,
+              Authorization: `Bearer ${this.bearerToken}`,
             },
-          }
+          },
         );
 
         if (!response.ok) {
           throw new Error(`Twitter API error: ${response.status}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as any;
         return data.data || [];
       },
       async () => {
         // Fallback: return empty array
-        console.warn('Twitter circuit breaker open, returning empty search results');
+        logger.warn('Circuit breaker open, returning empty search results', { service: 'twitter', state: 'open' });
         return [];
-      }
+      },
     );
   }
 
@@ -204,12 +210,12 @@ class TwitterService {
         async () => {
           const response = await fetch(`${this.API_BASE}/users/me`, {
             headers: {
-              'Authorization': `Bearer ${this.bearerToken}`,
+              Authorization: `Bearer ${this.bearerToken}`,
             },
           });
           return response.ok;
         },
-        async () => false
+        async () => false,
       );
     } catch {
       return false;

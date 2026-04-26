@@ -67,7 +67,12 @@ program
   .option('--queue <name>', 'BullMQ queue name to target')
   .option('--all', 'Target all discovered queue names')
   .option('--job-id <id>', 'Retry one specific failed job')
-  .option('--limit <number>', 'Maximum number of failed jobs to retry per queue', parsePositiveInteger, 50)
+  .option(
+    '--limit <number>',
+    'Maximum number of failed jobs to retry per queue',
+    parsePositiveInteger,
+    50,
+  )
   .option('--dry-run', 'Preview retry targets without retrying jobs')
   .option('-y, --yes', 'Confirm bulk retry execution')
   .action(async (options) => {
@@ -86,7 +91,9 @@ program
     const queueNames = options.all ? await getDiscoveredQueueNames() : [options.queue];
 
     if (queueNames.length === 0) {
-      throw new Error('No queue names were discovered. Set WORKER_MONITOR_QUEUES or run migrations:run first.');
+      throw new Error(
+        'No queue names were discovered. Set WORKER_MONITOR_QUEUES or run migrations:run first.',
+      );
     }
 
     for (const queueName of queueNames) {

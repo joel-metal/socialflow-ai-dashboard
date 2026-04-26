@@ -1,0 +1,118 @@
+{
+  "uid": "socialflow-sli",
+  "title": "Socialflow API SLIs",
+  "tags": ["sli", "performance"],
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "p95 Latency by Category (ms)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_ms_bucket[5m])) by (le, category))",
+          "legendFormat": "p95 {{ category }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 200 },
+            { "color": "red", "value": 2000 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "p99 Latency by Category (ms)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_ms_bucket[5m])) by (le, category))",
+          "legendFormat": "p99 {{ category }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "SLI Budget Targets",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 4 },
+      "datasource": "Prometheus",
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "background"
+      },
+      "targets": [
+        { "expr": "200", "legendFormat": "health p95 budget (ms)" },
+        { "expr": "500", "legendFormat": "health p99 budget (ms)" },
+        { "expr": "2000", "legendFormat": "ai p95 budget (ms)" },
+        { "expr": "3000", "legendFormat": "ai p99 budget (ms)" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "SLI Breach Rate (breaches/s)",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(sli_breach_total[5m])) by (category, percentile)",
+          "legendFormat": "{{ category }} {{ percentile }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Request Throughput by Category (req/s)",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_request_duration_ms_count[5m])) by (category)",
+          "legendFormat": "{{ category }}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Error Rate by Category",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_request_duration_ms_count{status_code=~\"5..\"}[5m])) by (category) / sum(rate(http_request_duration_ms_count[5m])) by (category)",
+          "legendFormat": "error rate {{ category }}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit" } }
+    }
+  ]
+}

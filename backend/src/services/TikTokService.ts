@@ -1,0 +1,408 @@
+import { circuitBreakerService } from './CircuitBreakerService';
+import { createLogger } from '../lib/logger';
+
+const logger = createLogger('tiktok-service');
+
+// TikTok Content Posting API v2 endpoints
+const TIKTOK_AUTH_URL = 'https://www.tiktok.com/v2/auth/authorize/';
+const TIKTOK_TOKEN_URL = 'https://open.tiktokapis.com/v2/oauth/token/';
+const TIKTOK_VIDEO_INIT_URL = 'https://open.tiktokapis.com/v2/post/publish/video/init/';
+const TIKTOK_VIDEO_STATUS_URL = 'https://open.tiktokapis.com/v2/post/publish/status/fetch/';
+
+// Chunked upload: TikTok requires chunks between 5 MB and 64 MB
+const CHUNK_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB per chunk
+
+export interface TikTokTokens {
+  accessToken: string;
+  refreshToken: string;
+  openId: string;
+  expiresAt: number;
+  refreshExpiresAt: number;
+  scope: string;
+}
+
+export interface TikTokVideoUploadRequest {
+  /** Local file path or a publicly accessible URL */
+  videoSource: string;
+  /** 'FILE_UPLOAD' for chunked binary upload, 'PULL_FROM_URL' for URL-based */
+  sourceType: 'FILE_UPLOAD' | 'PULL_FROM_URL';
+  title: string;
+  description?: string;
+  privacyLevel?: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY';
+  disableDuet?: boolean;
+  disableComment?: boolean;
+  disableStitch?: boolean;
+  videoCoverTimestampMs?: number;
+}
+
+export interface TikTokVideoStatus {
+  publishId: string;
+  status: 'PROCESSING_UPLOAD' | 'PUBLISH_COMPLETE' | 'FAILED' | 'PROCESSING_DOWNLOAD';
+  failReason?: string;
+  publiclyAvailable?: boolean;
+  shareUrl?: string;
+}
+
+export interface TikTokUserInfo {
+  openId: string;
+  unionId: string;
+  avatarUrl: string;
+  displayName: string;
+  bioDescription: string;
+  profileDeepLink: string;
+  isVerified: boolean;
+  followerCount: number;
+  followingCount: number;
+  likesCount: number;
+  videoCount: number;
+}
+
+class TikTokService {
+  private readonly clientKey: string;
+  private readonly clientSecret: string;
+  private readonly redirectUri: string;
+
+  constructor() {
+    this.clientKey = process.env.TIKTOK_CLIENT_KEY || '';
+    this.clientSecret = process.env.TIKTOK_CLIENT_SECRET || '';
+    this.redirectUri =
+      process.env.TIKTOK_REDIRECT_URI || 'http://localhost:3000/api/tiktok/callback';
+  }
+
+  public isConfigured(): boolean {
+    return !!this.clientKey && !!this.clientSecret;
+  }
+
+  // ─── OAuth ────────────────────────────────────────────────────────────────
+
+  /**
+   * Step 1: Build the TikTok OAuth2 authorization URL.
+   * Scopes required for video posting:
+   *   user.info.basic, video.publish, video.upload
+   */
+  public getAuthUrl(csrfState: string): string {
+    const params = new URLSearchParams({
+      client_key: this.clientKey,
+      redirect_uri: this.redirectUri,
+      response_type: 'code',
+      scope: 'user.info.basic,video.publish,video.upload',
+      state: csrfState,
+    });
+    return `${TIKTOK_AUTH_URL}?${params}`;
+  }
+
+  /**
+   * Step 2: Exchange authorization code for access + refresh tokens.
+   */
+  public async exchangeCode(code: string): Promise<TikTokTokens> {
+    const response = await fetch(TIKTOK_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_key: this.clientKey,
+        client_secret: this.clientSecret,
+        code,
+        grant_type: 'authorization_code',
+        redirect_uri: this.redirectUri,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(`TikTok token exchange failed: ${JSON.stringify(err)}`);
+    }
+
+    const data = (await response.json()) as any;
+    if (data.error) {
+      throw new Error(`TikTok token exchange error: ${data.error_description || data.error}`);
+    }
+
+    return this.mapTokenResponse(data);
+  }
+
+  /**
+   * Refresh an expired access token using the refresh token.
+   */
+  public async refreshAccessToken(refreshToken: string): Promise<TikTokTokens> {
+    const response = await fetch(TIKTOK_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_key: this.clientKey,
+        client_secret: this.clientSecret,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(`TikTok token refresh failed: ${JSON.stringify(err)}`);
+    }
+
+    const data = (await response.json()) as any;
+    return this.mapTokenResponse(data);
+  }
+
+  private mapTokenResponse(data: any): TikTokTokens {
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      openId: data.open_id,
+      expiresAt: Date.now() + (data.expires_in || 86400) * 1000,
+      refreshExpiresAt: Date.now() + (data.refresh_expires_in || 2592000) * 1000,
+      scope: data.scope || '',
+    };
+  }
+
+  // ─── User Info ────────────────────────────────────────────────────────────
+
+  public async getUserInfo(accessToken: string): Promise<TikTokUserInfo> {
+    return circuitBreakerService.execute(
+      'tiktok',
+      async () => {
+        const response = await fetch(
+          'https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name,bio_description,profile_deep_link,is_verified,follower_count,following_count,likes_count,video_count',
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(`Failed to fetch TikTok user info: ${JSON.stringify(err)}`);
+        }
+
+        const data = (await response.json()) as any;
+        const u = data.data?.user;
+        return {
+          openId: u.open_id,
+          unionId: u.union_id,
+          avatarUrl: u.avatar_url,
+          displayName: u.display_name,
+          bioDescription: u.bio_description,
+          profileDeepLink: u.profile_deep_link,
+          isVerified: u.is_verified,
+          followerCount: u.follower_count,
+          followingCount: u.following_count,
+          likesCount: u.likes_count,
+          videoCount: u.video_count,
+        };
+      },
+      async () => {
+        throw new Error('TikTok API temporarily unavailable');
+      },
+    );
+  }
+
+  // ─── Video Upload (chunked) ───────────────────────────────────────────────
+
+  /**
+   * Initiate a chunked video upload.
+   * Returns the publishId and uploadUrl to use for chunk uploads.
+   */
+  public async initiateVideoUpload(
+    accessToken: string,
+    fileSizeBytes: number,
+    request: TikTokVideoUploadRequest,
+  ): Promise<{ publishId: string; uploadUrl: string; chunkSize: number; totalChunks: number }> {
+    return circuitBreakerService.execute(
+      'tiktok',
+      async () => {
+        const totalChunks = Math.ceil(fileSizeBytes / CHUNK_SIZE_BYTES);
+
+        const body: Record<string, any> = {
+          post_info: {
+            title: request.title,
+            description: request.description || '',
+            privacy_level: request.privacyLevel || 'SELF_ONLY',
+            disable_duet: request.disableDuet ?? false,
+            disable_comment: request.disableComment ?? false,
+            disable_stitch: request.disableStitch ?? false,
+            video_cover_timestamp_ms: request.videoCoverTimestampMs ?? 1000,
+          },
+          source_info: {
+            source: request.sourceType,
+            video_size: fileSizeBytes,
+            chunk_size: CHUNK_SIZE_BYTES,
+            total_chunk_count: totalChunks,
+          },
+        };
+
+        const response = await fetch(TIKTOK_VIDEO_INIT_URL, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json; charset=UTF-8',
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(`TikTok video init failed: ${JSON.stringify(err)}`);
+        }
+
+        const data = (await response.json()) as any;
+        if (data.error?.code !== 'ok') {
+          throw new Error(`TikTok video init error: ${data.error?.message}`);
+        }
+
+        logger.info('TikTok video upload initiated', {
+          publishId: data.data.publish_id,
+          totalChunks,
+        });
+
+        return {
+          publishId: data.data.publish_id,
+          uploadUrl: data.data.upload_url,
+          chunkSize: CHUNK_SIZE_BYTES,
+          totalChunks,
+        };
+      },
+      async () => {
+        throw new Error('TikTok API temporarily unavailable');
+      },
+    );
+  }
+
+  /**
+   * Upload a single chunk of a video file.
+   * chunkIndex is 0-based.
+   */
+  public async uploadChunk(
+    uploadUrl: string,
+    chunkData: Buffer,
+    chunkIndex: number,
+    totalChunks: number,
+    totalFileSize: number,
+  ): Promise<void> {
+    const startByte = chunkIndex * CHUNK_SIZE_BYTES;
+    const endByte = Math.min(startByte + chunkData.length - 1, totalFileSize - 1);
+
+    const response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'video/mp4',
+        'Content-Range': `bytes ${startByte}-${endByte}/${totalFileSize}`,
+        'Content-Length': String(chunkData.length),
+      },
+      body: chunkData,
+    });
+
+    if (!response.ok && response.status !== 206) {
+      const text = await response.text();
+      throw new Error(
+        `Chunk ${chunkIndex + 1}/${totalChunks} upload failed (${response.status}): ${text}`,
+      );
+    }
+
+    logger.info('TikTok chunk uploaded', { chunkIndex: chunkIndex + 1, totalChunks });
+  }
+
+  /**
+   * Upload a video from a public URL (no chunking needed).
+   */
+  public async uploadVideoFromUrl(
+    accessToken: string,
+    request: TikTokVideoUploadRequest,
+  ): Promise<{ publishId: string }> {
+    return circuitBreakerService.execute(
+      'tiktok',
+      async () => {
+        const body = {
+          post_info: {
+            title: request.title,
+            description: request.description || '',
+            privacy_level: request.privacyLevel || 'SELF_ONLY',
+            disable_duet: request.disableDuet ?? false,
+            disable_comment: request.disableComment ?? false,
+            disable_stitch: request.disableStitch ?? false,
+            video_cover_timestamp_ms: request.videoCoverTimestampMs ?? 1000,
+          },
+          source_info: {
+            source: 'PULL_FROM_URL',
+            video_url: request.videoSource,
+          },
+        };
+
+        const response = await fetch(TIKTOK_VIDEO_INIT_URL, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json; charset=UTF-8',
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(`TikTok URL video upload failed: ${JSON.stringify(err)}`);
+        }
+
+        const data = (await response.json()) as any;
+        if (data.error?.code !== 'ok') {
+          throw new Error(`TikTok URL video upload error: ${data.error?.message}`);
+        }
+
+        logger.info('TikTok video upload from URL initiated', { publishId: data.data.publish_id });
+        return { publishId: data.data.publish_id };
+      },
+      async () => {
+        throw new Error('TikTok API temporarily unavailable');
+      },
+    );
+  }
+
+  // ─── Video Status ─────────────────────────────────────────────────────────
+
+  /**
+   * Poll the processing status of an uploaded video.
+   */
+  public async getVideoStatus(accessToken: string, publishId: string): Promise<TikTokVideoStatus> {
+    return circuitBreakerService.execute(
+      'tiktok',
+      async () => {
+        const response = await fetch(TIKTOK_VIDEO_STATUS_URL, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json; charset=UTF-8',
+          },
+          body: JSON.stringify({ publish_id: publishId }),
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(`Failed to fetch TikTok video status: ${JSON.stringify(err)}`);
+        }
+
+        const data = (await response.json()) as any;
+        const d = data.data;
+
+        return {
+          publishId,
+          status: d.status,
+          failReason: d.fail_reason,
+          publiclyAvailable: d.publicly_available,
+          shareUrl: d.share_url,
+        };
+      },
+      async () => {
+        throw new Error('TikTok API temporarily unavailable');
+      },
+    );
+  }
+
+  /**
+   * Circuit breaker status for health checks.
+   */
+  public getCircuitStatus() {
+    return circuitBreakerService.getStats('tiktok');
+  }
+}
+
+export const tiktokService = new TikTokService();

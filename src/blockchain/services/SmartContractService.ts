@@ -19,7 +19,7 @@ import {
     SorobanConfig,
     ContractCallType,
 } from '../types/soroban';
-import { SOROBAN_NETWORKS, DEFAULT_TIMEOUT } from '../config/soroban.config';
+import { SOROBAN_NETWORKS, DEFAULT_TIMEOUT, STELLAR_POLL_TIMEOUT_MS } from '../config/soroban.config';
 
 /**
  * SmartContractService - Handles Soroban smart contract interactions
@@ -214,14 +214,25 @@ export class SmartContractService {
 
     /**
      * Poll transaction status until it's confirmed or fails
+     * Throws ServiceUnavailableError if polling exceeds STELLAR_POLL_TIMEOUT_MS
      */
     private async pollTransactionStatus(
         txHash: string,
         maxAttempts: number = 10
     ): Promise<ContractInvocationResult> {
         let attempts = 0;
+        const startTime = Date.now();
 
         while (attempts < maxAttempts) {
+            // Check if polling has exceeded timeout
+            if (Date.now() - startTime > STELLAR_POLL_TIMEOUT_MS) {
+                return {
+                    success: false,
+                    error: `Transaction polling timeout exceeded (${STELLAR_POLL_TIMEOUT_MS}ms). Transaction may be stuck in mempool.`,
+                    errorType: 'SERVICE_UNAVAILABLE',
+                };
+            }
+
             try {
                 const txResponse = await this.server.getTransaction(txHash);
 
@@ -255,7 +266,7 @@ export class SmartContractService {
                     return {
                         success: false,
                         error: 'Transaction polling timeout',
-                        errorType: 'UNKNOWN',
+                        errorType: 'SERVICE_UNAVAILABLE',
                     };
                 }
             }
@@ -264,7 +275,7 @@ export class SmartContractService {
         return {
             success: false,
             error: 'Transaction confirmation timeout',
-            errorType: 'UNKNOWN',
+            errorType: 'SERVICE_UNAVAILABLE',
         };
     }
 

@@ -2,9 +2,11 @@ import { Worker } from 'bullmq';
 import { getConfiguredQueueNames, getNumber, getRedisConnection } from '../config/runtime';
 import { WorkerMonitor } from './workerMonitor';
 import { createLogger } from '../lib/logger';
+import { createNotificationManager } from '../services/notificationProvider';
 
 const logger = createLogger('worker-monitor');
 const redisConnection = getRedisConnection();
+const notificationManager = createNotificationManager();
 
 const queueNames = getConfiguredQueueNames();
 
@@ -16,7 +18,19 @@ const workerMonitor = new WorkerMonitor({
   maxRestartsPerHour: getNumber(process.env.WORKER_MONITOR_MAX_RESTARTS_PER_HOUR, 3),
   maxRecoveryAttempts: getNumber(process.env.WORKER_MONITOR_MAX_RECOVERY_ATTEMPTS, 5),
   alertHandler: async (alert) => {
-    // Replace this callback with PagerDuty/Slack/email integration in production.
+    const details = {
+      code: alert.code,
+      ...(alert.metadata ?? {}),
+    };
+
+    await notificationManager.sendAlert({
+      severity: alert.severity,
+      service: 'worker-monitor',
+      message: alert.message,
+      details,
+      timestamp: alert.timestamp,
+    });
+
     logger.warn('Worker monitor alert', { alert });
   },
 });

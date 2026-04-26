@@ -1,6 +1,5 @@
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs/promises';
-import path from 'path';
 import { createLogger } from '../lib/logger';
 
 const logger = createLogger('AudioMerger');
@@ -53,7 +52,7 @@ class AudioMerger {
     videoPath: string,
     audioPath: string,
     outputPath: string,
-    mixWithOriginal = false
+    mixWithOriginal = false,
   ): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const cmd = ffmpeg(videoPath).input(audioPath);
@@ -61,24 +60,31 @@ class AudioMerger {
       if (mixWithOriginal) {
         // Mix original + narration with amerge
         cmd
-          .complexFilter([
-            '[0:a][1:a]amerge=inputs=2[aout]',
-          ])
+          .complexFilter(['[0:a][1:a]amerge=inputs=2[aout]'])
           .outputOptions([
-            '-map', '0:v',
-            '-map', '[aout]',
-            '-c:v', 'copy',
-            '-c:a', 'aac',
-            '-ac', '2',
+            '-map',
+            '0:v',
+            '-map',
+            '[aout]',
+            '-c:v',
+            'copy',
+            '-c:a',
+            'aac',
+            '-ac',
+            '2',
             '-shortest',
           ]);
       } else {
         // Replace audio entirely
         cmd.outputOptions([
-          '-map', '0:v',
-          '-map', '1:a',
-          '-c:v', 'copy',
-          '-c:a', 'aac',
+          '-map',
+          '0:v',
+          '-map',
+          '1:a',
+          '-c:v',
+          'copy',
+          '-c:a',
+          'aac',
           '-shortest',
         ]);
       }

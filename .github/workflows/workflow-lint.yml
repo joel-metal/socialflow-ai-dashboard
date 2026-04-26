@@ -1,0 +1,33 @@
+name: Workflow Lint
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/scripts/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - '.github/scripts/**'
+
+jobs:
+  lint:
+    name: Lint & policy-check workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          sudo mv actionlint /usr/local/bin/
+
+      - name: Run actionlint
+        run: actionlint .github/workflows/*.yml .github/workflows/*.yaml
+
+      - name: Install js-yaml
+        run: npm install --no-save js-yaml
+
+      - name: Run workflow policy checks
+        run: node .github/scripts/check-workflows.mjs

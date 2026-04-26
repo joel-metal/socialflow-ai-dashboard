@@ -1,6 +1,13 @@
 import { GoogleGenAI } from '@google/genai';
 
-type SupportedPlatform = 'instagram' | 'tiktok' | 'linkedin' | 'x' | 'youtube' | 'facebook' | 'generic';
+type SupportedPlatform =
+  | 'instagram'
+  | 'tiktok'
+  | 'linkedin'
+  | 'x'
+  | 'youtube'
+  | 'facebook'
+  | 'generic';
 
 interface TrendSignal {
   tag: string;
@@ -72,37 +79,77 @@ const TREND_CATALOG: Record<SupportedPlatform, TrendSignal[]> = {
     { tag: 'TikTokGrowth', weight: 1.25, keywords: ['viral', 'growth', 'trend', 'audience'] },
     { tag: 'ForYouStrategy', weight: 1.2, keywords: ['discover', 'reach', 'viral', 'trend'] },
     { tag: 'ShortFormVideo', weight: 1.15, keywords: ['video', 'clip', 'hook', 'short'] },
-    { tag: 'CreatorEconomy', weight: 1.05, keywords: ['creator', 'content', 'monetize', 'audience'] },
+    {
+      tag: 'CreatorEconomy',
+      weight: 1.05,
+      keywords: ['creator', 'content', 'monetize', 'audience'],
+    },
   ],
   linkedin: [
     { tag: 'B2BMarketing', weight: 1.2, keywords: ['b2b', 'brand', 'marketing', 'pipeline'] },
-    { tag: 'ThoughtLeadership', weight: 1.25, keywords: ['insight', 'leadership', 'strategy', 'industry'] },
+    {
+      tag: 'ThoughtLeadership',
+      weight: 1.25,
+      keywords: ['insight', 'leadership', 'strategy', 'industry'],
+    },
     { tag: 'GrowthStrategy', weight: 1.1, keywords: ['growth', 'strategy', 'revenue', 'scale'] },
     { tag: 'PersonalBrand', weight: 1.05, keywords: ['brand', 'founder', 'career', 'leadership'] },
   ],
   x: [
     { tag: 'MarketingTwitter', weight: 1.2, keywords: ['marketing', 'thread', 'growth', 'social'] },
     { tag: 'BuildInPublic', weight: 1.15, keywords: ['launch', 'build', 'product', 'community'] },
-    { tag: 'CreatorStrategy', weight: 1.1, keywords: ['creator', 'audience', 'engagement', 'content'] },
+    {
+      tag: 'CreatorStrategy',
+      weight: 1.1,
+      keywords: ['creator', 'audience', 'engagement', 'content'],
+    },
     { tag: 'TrendWatch', weight: 1.05, keywords: ['trend', 'news', 'timely', 'conversation'] },
   ],
   youtube: [
     { tag: 'YouTubeGrowth', weight: 1.2, keywords: ['channel', 'video', 'audience', 'growth'] },
     { tag: 'VideoMarketing', weight: 1.15, keywords: ['video', 'marketing', 'reach', 'content'] },
-    { tag: 'CreatorTools', weight: 1.05, keywords: ['creator', 'editing', 'workflow', 'production'] },
+    {
+      tag: 'CreatorTools',
+      weight: 1.05,
+      keywords: ['creator', 'editing', 'workflow', 'production'],
+    },
     { tag: 'AudienceRetention', weight: 1.1, keywords: ['hook', 'watch', 'audience', 'retention'] },
   ],
   facebook: [
-    { tag: 'CommunityGrowth', weight: 1.15, keywords: ['community', 'audience', 'group', 'engagement'] },
+    {
+      tag: 'CommunityGrowth',
+      weight: 1.15,
+      keywords: ['community', 'audience', 'group', 'engagement'],
+    },
     { tag: 'SocialCampaign', weight: 1.1, keywords: ['campaign', 'social', 'reach', 'brand'] },
-    { tag: 'DigitalMarketing', weight: 1.05, keywords: ['digital', 'marketing', 'strategy', 'content'] },
-    { tag: 'AudienceEngagement', weight: 1.1, keywords: ['engagement', 'comments', 'reach', 'social'] },
+    {
+      tag: 'DigitalMarketing',
+      weight: 1.05,
+      keywords: ['digital', 'marketing', 'strategy', 'content'],
+    },
+    {
+      tag: 'AudienceEngagement',
+      weight: 1.1,
+      keywords: ['engagement', 'comments', 'reach', 'social'],
+    },
   ],
   generic: [
     { tag: 'SocialMedia', weight: 1.1, keywords: ['social', 'content', 'marketing', 'brand'] },
-    { tag: 'ContentStrategy', weight: 1.1, keywords: ['content', 'strategy', 'audience', 'growth'] },
-    { tag: 'AudienceGrowth', weight: 1.05, keywords: ['audience', 'reach', 'growth', 'engagement'] },
-    { tag: 'DigitalMarketing', weight: 1.05, keywords: ['digital', 'marketing', 'campaign', 'brand'] },
+    {
+      tag: 'ContentStrategy',
+      weight: 1.1,
+      keywords: ['content', 'strategy', 'audience', 'growth'],
+    },
+    {
+      tag: 'AudienceGrowth',
+      weight: 1.05,
+      keywords: ['audience', 'reach', 'growth', 'engagement'],
+    },
+    {
+      tag: 'DigitalMarketing',
+      weight: 1.05,
+      keywords: ['digital', 'marketing', 'campaign', 'brand'],
+    },
   ],
 };
 
@@ -155,14 +202,20 @@ const getKeywordScores = (words: string[]): Map<string, number> => {
   return scores;
 };
 
-const buildHeuristicHashtags = (text: string, platform: SupportedPlatform, maxTags: number): HashtagGenerationResult => {
+const buildHeuristicHashtags = (
+  text: string,
+  platform: SupportedPlatform,
+  maxTags: number,
+): HashtagGenerationResult => {
   const words = toWords(text);
   const keywordScores = getKeywordScores(words);
   const trendSignals = TREND_CATALOG[platform];
 
   const ranked = Array.from(keywordScores.entries()).map(([term, score]) => {
     const trendBoost = trendSignals.reduce((total, signal) => {
-      const matches = signal.keywords.some((keyword) => term.includes(keyword) || keyword.includes(term));
+      const matches = signal.keywords.some(
+        (keyword) => term.includes(keyword) || keyword.includes(term),
+      );
       return matches ? total + signal.weight : total;
     }, 0);
 
@@ -184,7 +237,10 @@ const buildHeuristicHashtags = (text: string, platform: SupportedPlatform, maxTa
   const trendHashtags = matchedTrendSignals.map((signal) => `#${signal.tag}`);
   const platformTag = platform === 'generic' ? [] : [toHashtag(platform)];
 
-  const hashtags = Array.from(new Set([...trendHashtags, ...textHashtags, ...platformTag])).slice(0, maxTags);
+  const hashtags = Array.from(new Set([...trendHashtags, ...textHashtags, ...platformTag])).slice(
+    0,
+    maxTags,
+  );
 
   return {
     platform,
@@ -202,11 +258,7 @@ const buildHeuristicHashtags = (text: string, platform: SupportedPlatform, maxTa
 const extractAiHashtags = (text: string): string[] => {
   const matches = text.match(/#?[A-Za-z][A-Za-z0-9_]+/g) ?? [];
   return Array.from(
-    new Set(
-      matches
-        .map((value) => (value.startsWith('#') ? value : `#${value}`))
-        .slice(0, 20),
-    ),
+    new Set(matches.map((value) => (value.startsWith('#') ? value : `#${value}`)).slice(0, 20)),
   );
 };
 
@@ -220,7 +272,10 @@ const generateAiHashtags = async (
     throw new Error('API_KEY is not configured for AI hashtag generation.');
   }
 
-  const trendHints = heuristic.analysis.trendMatches.length > 0 ? heuristic.analysis.trendMatches.join(', ') : 'none';
+  const trendHints =
+    heuristic.analysis.trendMatches.length > 0
+      ? heuristic.analysis.trendMatches.join(', ')
+      : 'none';
   const fallbackHints = heuristic.hashtags.join(', ');
 
   const response = await aiClient.models.generateContent({
@@ -236,6 +291,30 @@ const generateAiHashtags = async (
   });
 
   return extractAiHashtags(response.text ?? '').slice(0, maxTags);
+};
+
+/**
+ * Deduplicates hashtags case-insensitively, preserving the first occurrence's casing.
+ */
+export const deduplicateHashtags = (hashtags: string[]): string[] => {
+  const seen = new Set<string>();
+  return hashtags.filter((tag) => {
+    const key = tag.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+/**
+ * Merges hashtag results from multiple language/platform runs and deduplicates them.
+ */
+export const mergeMultiLanguageHashtags = (
+  results: HashtagGenerationResult[],
+  maxTags = 20,
+): string[] => {
+  const merged = results.flatMap((r) => r.hashtags);
+  return deduplicateHashtags(merged).slice(0, maxTags);
 };
 
 export const generateHashtagSuggestions = async (

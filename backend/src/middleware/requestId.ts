@@ -9,35 +9,54 @@ import { AsyncLocalStorage } from 'async_hooks';
 export const requestContext = new AsyncLocalStorage<{ requestId: string }>();
 
 /**
+ * UUID v4 validation regex.
+ * Accepts the canonical hyphenated form: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+ * where y is one of 8, 9, a, or b.
+ */
+const UUID_V4_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Validate that a string is a well-formed UUID v4.
+ * Returns true only for the canonical hyphenated format to prevent
+ * log-injection attacks via newlines, control characters, or arbitrary strings.
+ */
+export function isValidUuidV4(value: string): boolean {
+  return UUID_V4_REGEX.test(value);
+}
+
+/**
  * Request ID Middleware
- * 
+ *
  * Generates a unique ID for each incoming request and:
  * - Stores it in AsyncLocalStorage for context-aware logging
  * - Adds it to response headers (X-Request-Id)
  * - Attaches it to the request object
- * 
- * The request ID can be:
- * - Generated automatically (UUID v4)
- * - Provided by client via X-Request-Id header (for request tracing)
+ *
+ * The request ID is:
+ * - Accepted from the client via X-Request-Id header **only** when it is a
+ *   valid UUID v4 (prevents log-injection via arbitrary header values).
+ * - Generated automatically (crypto.randomUUID / UUID v4) in all other cases.
  */
-export const requestIdMiddleware = (
-    req: Request,
-    res: Response,
-    next: NextFunction
-): void => {
-    // Check if client provided a request ID, otherwise generate one
-    const requestId = (req.headers['x-request-id'] as string) || uuidv4();
+export const requestIdMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+  const clientId = req.headers['x-request-id'] as string | undefined;
 
-    // Store in AsyncLocalStorage for context-aware logging
-    requestContext.run({ requestId }, () => {
-        // Attach to request object for easy access
-        (req as any).requestId = requestId;
+  // Accept the client-supplied value only when it passes UUID v4 validation.
+  // Any other value (empty string, newline-containing string, arbitrary text)
+  // is silently replaced with a freshly generated UUID.
+  const requestId =
+    clientId && isValidUuidV4(clientId) ? clientId : uuidv4();
 
-        // Add to response headers
-        res.setHeader('X-Request-Id', requestId);
+  // Store in AsyncLocalStorage for context-aware logging
+  requestContext.run({ requestId }, () => {
+    // Attach to request object for easy access
+    (req as any).requestId = requestId;
 
-        next();
-    });
+    // Add to response headers
+    res.setHeader('X-Request-Id', requestId);
+
+    next();
+  });
 };
 
 /**
@@ -45,8 +64,8 @@ export const requestIdMiddleware = (
  * Returns undefined if called outside of a request context
  */
 export const getRequestId = (): string | undefined => {
-    const store = requestContext.getStore();
-    return store?.requestId;
+  const store = requestContext.getStore();
+  return store?.requestId;
 };
 
 /**
@@ -54,9 +73,10 @@ export const getRequestId = (): string | undefined => {
  * Adds requestId property to Request interface
  */
 declare global {
-    namespace Express {
-        interface Request {
-            requestId?: string;
-        }
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      requestId?: string;
     }
+  }
 }

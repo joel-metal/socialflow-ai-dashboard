@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+/dist
+/build
+.git
+.gitignore
+.env
+.DS_Store
+*.md
+.github
+docs
+examples
+tests
+__tests__
+cypress
+.husky
+.vercel
