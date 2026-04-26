@@ -11,6 +11,7 @@ export async function initDirectories(): Promise<void> {
   const directories = [
     path.join(process.cwd(), 'uploads', 'videos'),
     path.join(process.cwd(), 'uploads', 'transcoded'),
+    path.join(process.cwd(), 'uploads', 'tts'),
   ];
 
   for (const dir of directories) {

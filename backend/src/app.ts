@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { requestIdMiddleware } from './middleware/requestId';
 import { errorHandler, notFoundHandler } from './middleware/error';
+import ttsRoutes from './routes/tts';
+import twitterWebhookRoutes from './routes/twitter-webhook';
 
 const app: Application = express();
 
@@ -28,9 +30,9 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// TODO: Add your routes here
-// app.use('/api/auth', authRoutes);
-// app.use('/api/users', userRoutes);
+// Routes
+app.use('/api/tts', ttsRoutes);
+app.use('/api/twitter-webhook', twitterWebhookRoutes);
 
 // 404 handler - must be after all routes
 app.use(notFoundHandler);
