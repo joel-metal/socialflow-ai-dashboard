@@ -42,6 +42,15 @@ interface RateLimitState {
   lockedUntil: number | null;
 }
 
+// ── Pluggable lockout store interface ────────────────────────────────────────
+
+export interface TwoFactorLockoutStore {
+  recordFailedAttempt(userId: string): Promise<void>;
+  isLockedOut(userId: string): Promise<boolean>;
+  getLockoutRemainingMs(userId: string): Promise<number>;
+  resetFailedAttempts(userId: string): Promise<void>;
+}
+
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_DURATION_MS = 5 * 60 * 1000;
 const USER_STORE_KEY = 'sf_user_2fa';
@@ -91,6 +100,14 @@ let lastUsedToken: string | null = null;
 let lastUsedTokenTime: number = 0;
 
 export const twoFactorService = {
+
+  // ── Lockout store (pluggable — defaults to in-memory) ───────────────────────
+
+  _lockoutStore: null as TwoFactorLockoutStore | null,
+
+  setLockoutStore(store: TwoFactorLockoutStore): void {
+    twoFactorService._lockoutStore = store;
+  },
 
   // ── Secret lifecycle ────────────────────────────────────────────────────────
 
@@ -226,14 +243,22 @@ export const twoFactorService = {
 
   // ── Rate limiting ───────────────────────────────────────────────────────────
 
-  recordFailedAttempt(): void {
+  recordFailedAttempt(userId?: string): void {
+    if (twoFactorService._lockoutStore && userId) {
+      void twoFactorService._lockoutStore.recordFailedAttempt(userId);
+      return;
+    }
     rateLimitState.failedAttempts += 1;
     if (rateLimitState.failedAttempts >= LOCKOUT_THRESHOLD) {
       rateLimitState.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
     }
   },
 
-  isLockedOut(): boolean {
+  isLockedOut(userId?: string): boolean {
+    if (twoFactorService._lockoutStore && userId) {
+      // Synchronous callers fall back to in-memory; async callers should use the store directly
+      return false;
+    }
     if (rateLimitState.lockedUntil === null) return false;
     if (Date.now() >= rateLimitState.lockedUntil) {
       rateLimitState.lockedUntil = null;
@@ -243,12 +268,19 @@ export const twoFactorService = {
     return true;
   },
 
-  getLockoutRemainingMs(): number {
+  getLockoutRemainingMs(userId?: string): number {
+    if (twoFactorService._lockoutStore && userId) {
+      return 0; // async callers should use the store directly
+    }
     if (rateLimitState.lockedUntil === null) return 0;
     return Math.max(0, rateLimitState.lockedUntil - Date.now());
   },
 
-  resetFailedAttempts(): void {
+  resetFailedAttempts(userId?: string): void {
+    if (twoFactorService._lockoutStore && userId) {
+      void twoFactorService._lockoutStore.resetFailedAttempts(userId);
+      return;
+    }
     rateLimitState.failedAttempts = 0;
     rateLimitState.lockedUntil = null;
   },

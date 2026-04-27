@@ -56,6 +56,7 @@ module.exports = {
         ...sharedModuleNameMapper,
         '^opossum$': '<rootDir>/src/__tests__/__mocks__/opossum.js',
         '^.*/lib/prisma$': '<rootDir>/src/__tests__/__mocks__/prisma.js',
+        '^.*/lib/readReplica$': '<rootDir>/src/__tests__/__mocks__/readReplica.js',
         '^.*/lib/logger$': '<rootDir>/src/__tests__/__mocks__/logger.js',
         '^.*/CircuitBreakerService$': '<rootDir>/src/__tests__/__mocks__/CircuitBreakerService.js',
         '^.*/utils/LockService$': '<rootDir>/src/__tests__/__mocks__/LockService.js',

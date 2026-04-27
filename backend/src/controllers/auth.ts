@@ -17,11 +17,15 @@ const jwtRefreshSecret = () => config.JWT_REFRESH_SECRET;
 const jwtRefreshExpiresIn = () => config.JWT_REFRESH_EXPIRES_IN;
 
 function signAccess(userId: string): string {
-  return jwt.sign({ sub: userId }, jwtSecret(), { expiresIn: jwtExpiresIn() } as jwt.SignOptions);
+  const secret = jwtSecret();
+  if (!secret) throw new Error('JWT_SECRET is not configured');
+  return jwt.sign({ sub: userId }, secret, { expiresIn: jwtExpiresIn() } as jwt.SignOptions);
 }
 
 function signRefresh(userId: string): string {
-  return jwt.sign({ sub: userId, jti: randomUUID() }, jwtRefreshSecret(), {
+  const secret = jwtRefreshSecret();
+  if (!secret) throw new Error('JWT_REFRESH_SECRET is not configured');
+  return jwt.sign({ sub: userId, jti: randomUUID() }, secret, {
     expiresIn: jwtRefreshExpiresIn(),
   } as jwt.SignOptions);
 }
@@ -81,7 +85,7 @@ export async function login(req: Request, res: Response): Promise<void> {
   res.json({ accessToken, refreshToken, passwordRotationRequired: rotationRequired });
 }
 
-export function refresh(req: Request, res: Response): void {
+export async function refresh(req: Request, res: Response): Promise<void> {
   const { refreshToken } = req.body as { refreshToken: string };
 
   let payload: jwt.JwtPayload;
@@ -97,6 +101,11 @@ export function refresh(req: Request, res: Response): void {
     res.status(401).json({ message: 'Refresh token revoked' });
     return;
   }
+
+  // Blacklist the consumed refresh token to prevent replay
+  const tokenKey = AuthBlacklistService.keyFromPayload(payload);
+  const ttl = payload.exp ? payload.exp - Math.floor(Date.now() / 1000) : 7 * 24 * 3600;
+  await AuthBlacklistService.blacklistToken(tokenKey, ttl);
 
   // Rotate refresh token
   const newRefresh = signRefresh(user.id);
