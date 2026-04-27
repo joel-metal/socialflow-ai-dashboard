@@ -1,5 +1,5 @@
 import Redis from 'ioredis';
-import { getRedisConnection } from '../config/runtime';
+import { redis } from '../lib/redis';
 
 const BLACKLIST_PREFIX = 'jwt:blacklist:';
 
@@ -17,10 +17,8 @@ function parseTTLSeconds(value: string | undefined, fallbackSeconds: number): nu
   return n * multipliers[unit];
 }
 
-const _redis = new Redis(getRedisConnection());
-
-export function getRedis(): Redis {
-  return _redis;
+function getRedis(): Redis {
+  return redis;
 }
 
 export const AuthBlacklistService = {
