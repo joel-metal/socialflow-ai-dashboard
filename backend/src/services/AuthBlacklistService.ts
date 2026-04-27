@@ -17,12 +17,9 @@ function parseTTLSeconds(value: string | undefined, fallbackSeconds: number): nu
   return n * multipliers[unit];
 }
 
-let _redis: Redis | null = null;
+const _redis = new Redis(getRedisConnection());
 
-function getRedis(): Redis {
-  if (!_redis) {
-    _redis = new Redis(getRedisConnection());
-  }
+export function getRedis(): Redis {
   return _redis;
 }
 
