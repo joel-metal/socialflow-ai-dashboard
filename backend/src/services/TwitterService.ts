@@ -1,8 +1,20 @@
+import crypto from 'crypto';
+import Redis from 'ioredis';
 import { circuitBreakerService } from './CircuitBreakerService';
 import { LockService } from '../utils/LockService';
 import { createLogger } from '../lib/logger';
+import { getRedisConnection } from '../config/runtime';
 
 const logger = createLogger('twitter-service');
+
+const PKCE_CHALLENGE_PREFIX = 'twitter:pkce:';
+const PKCE_TTL_SECONDS = 600; // 10 minutes
+
+let _redis: Redis | null = null;
+function getRedis(): Redis {
+  if (!_redis) _redis = new Redis(getRedisConnection());
+  return _redis;
+}
 
 /**
  * Twitter API Response Types
@@ -227,6 +239,72 @@ export class TwitterService {
    */
   public getCircuitStatus() {
     return circuitBreakerService.getStats('twitter');
+  }
+
+  // ─── PKCE helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * Store a PKCE code_challenge keyed by state, to be verified on callback.
+   */
+  public async storePkceChallenge(state: string, codeChallenge: string): Promise<void> {
+    await getRedis().set(`${PKCE_CHALLENGE_PREFIX}${state}`, codeChallenge, 'EX', PKCE_TTL_SECONDS);
+  }
+
+  /**
+   * Exchange an authorisation code for tokens, verifying the PKCE code_verifier
+   * against the stored code_challenge for the given state.
+   *
+   * Throws if the verifier is missing, the challenge is not found, or they do not match.
+   */
+  public async exchangeCodeForTokens(
+    code: string,
+    state: string,
+    codeVerifier: string,
+    clientId: string,
+    redirectUri: string,
+  ): Promise<{ accessToken: string; refreshToken: string; expiresAt: number }> {
+    // Retrieve and immediately delete the stored challenge (one-time use)
+    const redis = getRedis();
+    const key = `${PKCE_CHALLENGE_PREFIX}${state}`;
+    const storedChallenge = await redis.getdel(key);
+
+    if (!storedChallenge) {
+      throw new Error('PKCE challenge not found or expired');
+    }
+
+    // Recompute S256 challenge from the supplied verifier
+    const expectedChallenge = crypto
+      .createHash('sha256')
+      .update(codeVerifier)
+      .digest('base64url');
+
+    if (expectedChallenge !== storedChallenge) {
+      throw new Error('PKCE verification failed: code_verifier does not match code_challenge');
+    }
+
+    const response = await fetch('https://api.twitter.com/2/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        code_verifier: codeVerifier,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(`Twitter token exchange failed: ${JSON.stringify(err)}`);
+    }
+
+    const data = (await response.json()) as any;
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt: Date.now() + data.expires_in * 1000,
+    };
   }
 }
 

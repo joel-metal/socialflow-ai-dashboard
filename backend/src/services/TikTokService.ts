@@ -1,7 +1,18 @@
 import { circuitBreakerService } from './CircuitBreakerService';
 import { createLogger } from '../lib/logger';
+import Redis from 'ioredis';
+import { getRedisConnection } from '../config/runtime';
 
 const logger = createLogger('tiktok-service');
+
+const UPLOAD_PROGRESS_PREFIX = 'tiktok:upload:progress:';
+const UPLOAD_PROGRESS_TTL = 86400; // 24 hours
+
+let _redis: Redis | null = null;
+function getRedis(): Redis {
+  if (!_redis) _redis = new Redis(getRedisConnection());
+  return _redis;
+}
 
 // TikTok Content Posting API v2 endpoints
 const TIKTOK_AUTH_URL = 'https://www.tiktok.com/v2/auth/authorize/';
@@ -272,6 +283,10 @@ class TikTokService {
   /**
    * Upload a single chunk of a video file.
    * chunkIndex is 0-based.
+   *
+   * Progress is persisted in Redis keyed by uploadSessionId so that a failed
+   * upload can resume from the last confirmed byte offset rather than
+   * re-uploading already-confirmed chunks.
    */
   public async uploadChunk(
     uploadUrl: string,
@@ -279,7 +294,18 @@ class TikTokService {
     chunkIndex: number,
     totalChunks: number,
     totalFileSize: number,
+    uploadSessionId: string,
   ): Promise<void> {
+    const redis = getRedis();
+    const progressKey = `${UPLOAD_PROGRESS_PREFIX}${uploadSessionId}`;
+
+    // Check whether this chunk was already confirmed
+    const confirmedStr = await redis.hget(progressKey, String(chunkIndex));
+    if (confirmedStr === '1') {
+      logger.info('TikTok chunk already uploaded, skipping', { chunkIndex: chunkIndex + 1, totalChunks });
+      return;
+    }
+
     const startByte = chunkIndex * CHUNK_SIZE_BYTES;
     const endByte = Math.min(startByte + chunkData.length - 1, totalFileSize - 1);
 
@@ -300,7 +326,18 @@ class TikTokService {
       );
     }
 
+    // Mark chunk as confirmed and refresh TTL
+    await redis.hset(progressKey, String(chunkIndex), '1');
+    await redis.expire(progressKey, UPLOAD_PROGRESS_TTL);
+
     logger.info('TikTok chunk uploaded', { chunkIndex: chunkIndex + 1, totalChunks });
+  }
+
+  /**
+   * Clear upload progress tracking for a completed or abandoned session.
+   */
+  public async clearUploadProgress(uploadSessionId: string): Promise<void> {
+    await getRedis().del(`${UPLOAD_PROGRESS_PREFIX}${uploadSessionId}`);
   }
 
   /**
