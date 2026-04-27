@@ -11,6 +11,20 @@ const logger = createLogger('middleware:ipWhitelist');
  * Supports IPv4 and IPv6, and handles proxy headers safely if the app is 
  * configured to trust proxies.
  */
+/**
+ * Normalise an IP address by converting IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)
+ * to their plain IPv4 representation. This ensures that a client connecting via IPv6
+ * with an IPv4-mapped address can still match IPv4 whitelist entries.
+ */
+function normaliseIp(rawIp: string): string {
+  // Strip the IPv4-mapped IPv6 prefix if present
+  const ipv4MappedPrefix = '::ffff:';
+  if (rawIp.toLowerCase().startsWith(ipv4MappedPrefix)) {
+    return rawIp.slice(ipv4MappedPrefix.length);
+  }
+  return rawIp;
+}
+
 export const ipWhitelistMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const clientIp = requestIp.getClientIp(req);
   const whitelist = getAdminIpWhitelist();
@@ -33,7 +47,9 @@ export const ipWhitelistMiddleware = (req: Request, res: Response, next: NextFun
   }
 
   try {
-    const addr = ipaddr.parse(clientIp);
+    // Normalise the client IP to handle IPv4-mapped IPv6 addresses (e.g. ::ffff:192.168.1.1)
+    const normalisedIp = normaliseIp(clientIp);
+    const addr = ipaddr.parse(normalisedIp);
     const isAllowed = whitelist.some((entry) => {
       try {
         if (entry.includes('/')) {

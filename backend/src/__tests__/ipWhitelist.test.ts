@@ -94,4 +94,47 @@ describe('ipWhitelistMiddleware', () => {
     ipWhitelistMiddleware(mockRequest as Request, mockResponse as Response, nextFunction);
     expect(nextFunction).toHaveBeenCalled();
   });
+
+  // ── IPv4-mapped IPv6 address tests ────────────────────────────────────────
+
+  it('should allow access for IPv4-mapped IPv6 address matching an exact IPv4 whitelist entry', () => {
+    (runtime.getAdminIpWhitelist as jest.Mock).mockReturnValue(['192.168.1.1']);
+    (requestIp.getClientIp as jest.Mock).mockReturnValue('::ffff:192.168.1.1');
+
+    ipWhitelistMiddleware(mockRequest as Request, mockResponse as Response, nextFunction);
+    expect(nextFunction).toHaveBeenCalled();
+  });
+
+  it('should allow access for IPv4-mapped IPv6 address matching an IPv4 CIDR whitelist entry', () => {
+    (runtime.getAdminIpWhitelist as jest.Mock).mockReturnValue(['192.168.1.0/24']);
+    (requestIp.getClientIp as jest.Mock).mockReturnValue('::ffff:192.168.1.50');
+
+    ipWhitelistMiddleware(mockRequest as Request, mockResponse as Response, nextFunction);
+    expect(nextFunction).toHaveBeenCalled();
+  });
+
+  it('should block access for IPv4-mapped IPv6 address not in the whitelist', () => {
+    (runtime.getAdminIpWhitelist as jest.Mock).mockReturnValue(['10.0.0.1']);
+    (requestIp.getClientIp as jest.Mock).mockReturnValue('::ffff:192.168.1.1');
+
+    ipWhitelistMiddleware(mockRequest as Request, mockResponse as Response, nextFunction);
+    expect(nextFunction).not.toHaveBeenCalled();
+    expect(mockResponse.status).toHaveBeenCalledWith(403);
+  });
+
+  it('should allow access for IPv4-mapped IPv6 address matching a mixed whitelist (IPv4 + IPv6)', () => {
+    (runtime.getAdminIpWhitelist as jest.Mock).mockReturnValue(['127.0.0.1', '::1', '192.168.1.0/24']);
+    (requestIp.getClientIp as jest.Mock).mockReturnValue('::ffff:192.168.1.100');
+
+    ipWhitelistMiddleware(mockRequest as Request, mockResponse as Response, nextFunction);
+    expect(nextFunction).toHaveBeenCalled();
+  });
+
+  it('should handle case-insensitive IPv4-mapped IPv6 prefix', () => {
+    (runtime.getAdminIpWhitelist as jest.Mock).mockReturnValue(['192.168.1.1']);
+    (requestIp.getClientIp as jest.Mock).mockReturnValue('::FFFF:192.168.1.1');
+
+    ipWhitelistMiddleware(mockRequest as Request, mockResponse as Response, nextFunction);
+    expect(nextFunction).toHaveBeenCalled();
+  });
 });
