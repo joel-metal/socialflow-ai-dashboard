@@ -6,6 +6,53 @@ export { isDegraded } from '../types/degraded';
 
 const logger = createLogger('youtube-service');
 
+export class YouTubeQuotaError extends Error {
+  public readonly retryAfter: Date;
+  constructor(retryAfter: Date) {
+    super(`YouTube API quota exceeded. Quota resets at ${retryAfter.toISOString()}.`);
+    this.name = 'YouTubeQuotaError';
+    this.retryAfter = retryAfter;
+  }
+}
+
+/**
+ * Parse a YouTube 403 quota-exceeded API error response and throw a
+ * YouTubeQuotaError with the reset time, or re-throw the original error.
+ */
+function handleYouTubeError(status: number, body: any): never {
+  if (status === 403) {
+    const errors: any[] = body?.error?.errors ?? [];
+    const isQuota = errors.some(
+      (e) => e.domain === 'youtube.quota' || e.reason === 'quotaExceeded' || e.reason === 'dailyLimitExceeded',
+    );
+    if (isQuota) {
+      // YouTube quota resets at midnight Pacific Time (UTC-7 / UTC-8).
+      // The API does not return an exact reset timestamp, so we compute the
+      // next midnight PT as the best available estimate.
+      const resetTime = nextMidnightPacific();
+      throw new YouTubeQuotaError(resetTime);
+    }
+  }
+  throw new Error(`YouTube API error: ${status} — ${JSON.stringify(body)}`);
+}
+
+function nextMidnightPacific(): Date {
+  // Pacific Standard Time is UTC-8; Pacific Daylight Time is UTC-7.
+  // We use a fixed -8 offset as a conservative estimate (quota always resets
+  // by midnight PST at the latest).
+  const nowUtc = Date.now();
+  const pacificOffsetMs = 8 * 60 * 60 * 1000; // UTC-8
+  const nowPacific = new Date(nowUtc - pacificOffsetMs);
+  const midnightPacific = new Date(
+    Date.UTC(
+      nowPacific.getUTCFullYear(),
+      nowPacific.getUTCMonth(),
+      nowPacific.getUTCDate() + 1, // next day
+    ) + pacificOffsetMs,
+  );
+  return midnightPacific;
+}
+
 export interface YouTubeVideoStats {
   videoId: string;
   title: string;
@@ -129,7 +176,10 @@ class YouTubeService {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
 
-        if (!response.ok) throw new Error(`YouTube API error: ${response.status}`);
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          handleYouTubeError(response.status, body);
+        }
 
         const data = (await response.json()) as any;
         const ch = data.items?.[0];
@@ -168,7 +218,10 @@ class YouTubeService {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
 
-        if (!response.ok) throw new Error(`YouTube API error: ${response.status}`);
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          handleYouTubeError(response.status, body);
+        }
 
         const data = (await response.json()) as any;
         return (data.items ?? []).map((item: any) => ({
@@ -207,7 +260,10 @@ class YouTubeService {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
 
-        if (!response.ok) throw new Error(`YouTube API error: ${response.status}`);
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          handleYouTubeError(response.status, body);
+        }
 
         const data = (await response.json()) as any;
         return (data.items ?? []).map((item: any) => item.id.videoId as string);

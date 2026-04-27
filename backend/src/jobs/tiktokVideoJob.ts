@@ -121,7 +121,7 @@ async function handleVideoUpload(job: Job): Promise<void> {
     for (let i = 0; i < totalChunks; i++) {
       const buffer = Buffer.alloc(Math.min(chunkSize, fileSizeBytes - i * chunkSize));
       await fileHandle.read(buffer, 0, buffer.length, i * chunkSize);
-      await tiktokService.uploadChunk(uploadUrl, buffer, i, totalChunks, fileSizeBytes);
+      await tiktokService.uploadChunk(uploadUrl, buffer, i, totalChunks, fileSizeBytes, publishId);
 
       // Report progress
       await job.updateProgress(Math.round(((i + 1) / totalChunks) * 100));
@@ -129,6 +129,9 @@ async function handleVideoUpload(job: Job): Promise<void> {
   } finally {
     await fileHandle.close();
   }
+
+  // Clear progress tracking now that all chunks are confirmed
+  await tiktokService.clearUploadProgress(publishId);
 
   logger.info('All chunks uploaded, queuing status poll', { publishId });
 
