@@ -3,6 +3,8 @@ import { clearCache } from '../admin/cacheAdminService';
 import { getDiscoveredQueueNames, retryFailedJobs } from '../admin/jobAdminService';
 import { listMigrations, runMigrations } from '../admin/migrationService';
 import { createLogger } from '../lib/logger';
+import { prisma } from '../lib/prisma';
+import { PasswordHistoryService } from '../services/PasswordHistoryService';
 
 const logger = createLogger('admin-cli');
 
@@ -141,6 +143,28 @@ program
     );
 
     logger.info('migrations:run finished', result);
+  });
+
+program
+  .command('users:reset-password')
+  .description('Admin-initiated password reset for a user.')
+  .requiredOption('--user-id <id>', 'ID of the user whose password will be reset')
+  .requiredOption('--new-password <password>', 'New plaintext password')
+  .option('-y, --yes', 'Confirm the reset')
+  .action(async (options) => {
+    requireConfirmation(options.yes, 'Refusing to reset password without --yes.');
+
+    const user = await prisma.user.findUnique({ where: { id: options.userId } });
+    if (!user) throw new Error(`User not found: ${options.userId}`);
+
+    if (await PasswordHistoryService.isPasswordReused(options.userId, options.newPassword)) {
+      throw new Error('Cannot reuse one of the last 5 passwords');
+    }
+
+    const newHash = await PasswordHistoryService.hashPassword(options.newPassword);
+    await PasswordHistoryService.recordPasswordChange(options.userId, newHash);
+
+    logger.info('users:reset-password finished', { userId: options.userId });
   });
 
 const main = async (): Promise<void> => {

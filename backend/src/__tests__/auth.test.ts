@@ -261,3 +261,57 @@ describe('UserStore', () => {
     expect(UserStore.findById('ghost')).toBeUndefined();
   });
 });
+
+// ─── #607 JWT undefined-secret guard ─────────────────────────────────────────
+
+describe('#607 signAccess / signRefresh throw when secret is falsy', () => {
+  const originalSecret = process.env.JWT_SECRET;
+  const originalRefreshSecret = process.env.JWT_REFRESH_SECRET;
+
+  afterEach(() => {
+    process.env.JWT_SECRET = originalSecret;
+    process.env.JWT_REFRESH_SECRET = originalRefreshSecret;
+    jest.resetModules();
+  });
+
+  it('signAccess throws when JWT_SECRET is undefined', async () => {
+    delete process.env.JWT_SECRET;
+    jest.resetModules();
+    const { register } = await import('../controllers/auth');
+    const req = { body: { email: 'guard1@example.com', password: 'SecurePass1!' }, ip: '127.0.0.1', headers: {} } as any;
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() } as any;
+    await expect(register(req, res)).rejects.toThrow('JWT_SECRET is not configured');
+  });
+
+  it('signRefresh throws when JWT_REFRESH_SECRET is undefined', async () => {
+    delete process.env.JWT_REFRESH_SECRET;
+    jest.resetModules();
+    const { register } = await import('../controllers/auth');
+    const req = { body: { email: 'guard2@example.com', password: 'SecurePass1!' }, ip: '127.0.0.1', headers: {} } as any;
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() } as any;
+    await expect(register(req, res)).rejects.toThrow('JWT_REFRESH_SECRET is not configured');
+  });
+});
+
+// ─── #608 Refresh token blacklisting ─────────────────────────────────────────
+
+describe('#608 consumed refresh token is blacklisted after rotation', () => {
+  let refreshToken: string;
+
+  beforeAll(async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ email: 'replay1@example.com', password: 'ValidPass1!' });
+    refreshToken = res.body.refreshToken;
+  });
+
+  it('replayed refresh token returns 401 after rotation', async () => {
+    // First use — valid rotation
+    const first = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    expect(first.status).toBe(200);
+
+    // Replay the original token — must be rejected
+    const replay = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    expect(replay.status).toBe(401);
+  });
+});
