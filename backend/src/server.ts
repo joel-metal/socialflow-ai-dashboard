@@ -18,6 +18,7 @@ import { prisma } from './lib/prisma';
 import { Worker } from 'bullmq';
 import { Server } from 'http';
 import { createSmsService } from './services/smsService';
+import { initialize2FaLockoutStore } from './services/TwoFactorLockoutInit';
 
 const logger = createLogger('server');
 const PORT = config.BACKEND_PORT;
@@ -215,6 +216,17 @@ export const bootstrap = async (exit?: (code: number) => void): Promise<void> =>
       authToken: config.TWILIO_AUTH_TOKEN,
       fromNumber: config.TWILIO_FROM_NUMBER,
     });
+
+    // Initialize 2FA lockout store with Redis backend (#610)
+    try {
+      initialize2FaLockoutStore();
+      logger.info('2FA lockout store initialized');
+    } catch (error) {
+      logger.error('Failed to initialize 2FA lockout store', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Note: Do not exit on this error; continue with in-memory fallback
+    }
 
     // Initialize job queue workers
     logger.info('Initializing job queue workers...');
