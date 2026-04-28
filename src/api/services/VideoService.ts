@@ -1,35 +1,54 @@
-// Auto-generated from backend/openapi.yaml — do not edit manually.
+/* generated using openapi-typescript-codegen -- do not edit */
+/* istanbul ignore file */
+/* tslint:disable */
+/* eslint-disable */
+import type { VideoJob } from '../models/VideoJob';
+import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
-import { request } from '../core/request';
-import type { HealthStatus, VideoJob } from '../models';
-
+import { request as __request } from '../core/request';
 export class VideoService {
-  static uploadVideo(formData: FormData): Promise<{ message?: string; jobId?: string; status?: string }> {
-    return request(OpenAPI, {
-      method: 'POST',
-      url: '/api/video/upload',
-      body: formData,
-      mediaType: 'multipart/form-data',
-    });
-  }
-
-  static getVideoJob(jobId: string): Promise<VideoJob> {
-    return request(OpenAPI, { method: 'GET', url: '/api/video/job/{jobId}', path: { jobId } });
-  }
-
-  static listVideoJobs(): Promise<{ jobs?: VideoJob[] }> {
-    return request(OpenAPI, { method: 'GET', url: '/api/video/jobs' });
-  }
-
-  static cancelVideoJob(jobId: string): Promise<{ message?: string }> {
-    return request(OpenAPI, { method: 'DELETE', url: '/api/video/job/{jobId}', path: { jobId } });
-  }
-
-  static getVideoQueueStatus(): Promise<Record<string, unknown>> {
-    return request(OpenAPI, { method: 'GET', url: '/api/video/queue/status' });
-  }
-
-  static getVideoHealth(): Promise<HealthStatus> {
-    return request(OpenAPI, { method: 'GET', url: '/api/video/health' });
-  }
+    /**
+     * Create a video transcoding job
+     * @returns VideoJob Job created
+     * @throws ApiError
+     */
+    public static postVideoTranscode({
+        requestBody,
+    }: {
+        requestBody: {
+            inputPath: string;
+            options?: Record<string, any>;
+        },
+    }): CancelablePromise<VideoJob> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/video/transcode',
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: `Validation error`,
+            },
+        });
+    }
+    /**
+     * Get video transcoding job status
+     * @returns VideoJob Job status
+     * @throws ApiError
+     */
+    public static getVideoJobs({
+        jobId,
+    }: {
+        jobId: string,
+    }): CancelablePromise<VideoJob> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/video/jobs/{jobId}',
+            path: {
+                'jobId': jobId,
+            },
+            errors: {
+                404: `Job not found`,
+            },
+        });
+    }
 }

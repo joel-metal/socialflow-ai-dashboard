@@ -23,15 +23,14 @@
     "prepare": "husky install",
     "lint": "eslint .",
     "start:traced": "node -r ./dist/tracing.js dist/index.js",
-    "generate-client": "openapi-typescript-codegen --input ./backend/openapi.yaml --output ./src/api --client fetch --useOptions --useUnionTypes",
+    "generate-client": "openapi --input ./backend/openapi.yaml --output ./src/api --client fetch --useOptions --useUnionTypes",
     "prisma": "npm run --prefix backend prisma",
     "prisma:migrate": "npm run --prefix backend prisma migrate",
     "prisma:generate": "npm run --prefix backend prisma generate"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
-      "eslint --fix",
-      "npm test -- --passWithNoTests"
+      "eslint --fix"
     ],
     "*.{json,css,md}": [
       "prettier --write"

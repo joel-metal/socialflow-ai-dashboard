@@ -8,14 +8,23 @@ import request from 'supertest';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authenticate } from '../middleware/authenticate';
 import { UserStore } from '../models/User';
+import { resetLimiters } from '../middleware/rateLimit';
 import { Request, Response } from 'express';
 
 // Register a protected test route once at module load time
-app.get('/api/test/protected', authMiddleware, (_req: Request, res: Response) =>
+app.get('/api/test/protected', authenticate, (_req: Request, res: Response) =>
   res.json({ ok: true }),
 );
+
+// ─── Global teardown ─────────────────────────────────────────────────────────
+// Reset in-memory rate-limit counters and user store after every test so that
+// counter state from one case cannot cause unexpected 429s in later cases.
+afterEach(() => {
+  resetLimiters();
+  UserStore.clear();
+});
 
 // ─── Password hashing ────────────────────────────────────────────────────────
 
@@ -104,7 +113,7 @@ describe('POST /api/auth/register', () => {
 // ─── Login ───────────────────────────────────────────────────────────────────
 
 describe('POST /api/auth/login', () => {
-  beforeAll(async () => {
+  beforeEach(async () => {
     await request(app)
       .post('/api/auth/register')
       .send({ email: 'dave@example.com', password: 'ValidPass1!' });
@@ -142,7 +151,7 @@ describe('POST /api/auth/login', () => {
 describe('POST /api/auth/refresh', () => {
   let refreshToken: string;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     const res = await request(app)
       .post('/api/auth/register')
       .send({ email: 'eve@example.com', password: 'ValidPass1!' });
@@ -278,7 +287,11 @@ describe('#607 signAccess / signRefresh throw when secret is falsy', () => {
     delete process.env.JWT_SECRET;
     jest.resetModules();
     const { register } = await import('../controllers/auth');
-    const req = { body: { email: 'guard1@example.com', password: 'SecurePass1!' }, ip: '127.0.0.1', headers: {} } as any;
+    const req = {
+      body: { email: 'guard1@example.com', password: 'SecurePass1!' },
+      ip: '127.0.0.1',
+      headers: {},
+    } as any;
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() } as any;
     await expect(register(req, res)).rejects.toThrow('JWT_SECRET is not configured');
   });
@@ -287,7 +300,11 @@ describe('#607 signAccess / signRefresh throw when secret is falsy', () => {
     delete process.env.JWT_REFRESH_SECRET;
     jest.resetModules();
     const { register } = await import('../controllers/auth');
-    const req = { body: { email: 'guard2@example.com', password: 'SecurePass1!' }, ip: '127.0.0.1', headers: {} } as any;
+    const req = {
+      body: { email: 'guard2@example.com', password: 'SecurePass1!' },
+      ip: '127.0.0.1',
+      headers: {},
+    } as any;
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() } as any;
     await expect(register(req, res)).rejects.toThrow('JWT_REFRESH_SECRET is not configured');
   });
@@ -298,7 +315,7 @@ describe('#607 signAccess / signRefresh throw when secret is falsy', () => {
 describe('#608 consumed refresh token is blacklisted after rotation', () => {
   let refreshToken: string;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     const res = await request(app)
       .post('/api/auth/register')
       .send({ email: 'replay1@example.com', password: 'ValidPass1!' });

@@ -1,5 +1,6 @@
 import { circuitBreakerService } from './CircuitBreakerService';
 import { createLogger } from '../lib/logger';
+import { ValidationError } from '../lib/errors';
 
 const logger = createLogger('linkedin-service');
 
@@ -20,15 +21,32 @@ export interface LinkedInProfile {
   vanityName?: string;
 }
 
+/** Maximum number of images allowed in a single LinkedIn multi-image post */
+export const LINKEDIN_MAX_IMAGES = 20;
+
+export interface LinkedInMediaAsset {
+  /** Publicly accessible URL of the image */
+  url: string;
+  /** Optional alt-text / caption for the image */
+  title?: string;
+  description?: string;
+}
+
 export interface LinkedInShareRequest {
   /** URN of the author — either a person URN or organization URN */
   authorUrn: string;
   text: string;
-  /** Optional URL to attach as a link share */
+  /** Optional URL to attach as a link share (ignored when mediaAssets is provided) */
   url?: string;
   title?: string;
   description?: string;
   visibility?: 'PUBLIC' | 'CONNECTIONS';
+  /**
+   * Up to 20 image assets for a multi-image (carousel) post.
+   * When provided, takes precedence over `url`.
+   * Throws a ValidationError if more than LINKEDIN_MAX_IMAGES items are supplied.
+   */
+  mediaAssets?: LinkedInMediaAsset[];
 }
 
 export interface LinkedInShareResult {
@@ -134,36 +152,47 @@ class LinkedInService {
   /**
    * Share a text post (UGC Post) on behalf of a member or organization.
    * `authorUrn` must be a URN, e.g. `urn:li:person:{id}` or `urn:li:organization:{id}`.
+   *
+   * Supports three content modes:
+   *  - Text-only: no `url` and no `mediaAssets`
+   *  - Link share: `url` provided (and no `mediaAssets`)
+   *  - Multi-image: `mediaAssets` array with 1–20 items
    */
   public async shareContent(
     accessToken: string,
     request: LinkedInShareRequest,
   ): Promise<LinkedInShareResult> {
+    // Validate image count before hitting the network
+    if (request.mediaAssets !== undefined) {
+      if (request.mediaAssets.length === 0) {
+        throw new ValidationError(
+          'mediaAssets must contain at least one image',
+          undefined,
+          'INVALID_PAYLOAD',
+        );
+      }
+      if (request.mediaAssets.length > LINKEDIN_MAX_IMAGES) {
+        throw new ValidationError(
+          `LinkedIn allows a maximum of ${LINKEDIN_MAX_IMAGES} images per post, but ${request.mediaAssets.length} were provided`,
+          undefined,
+          'INVALID_PAYLOAD',
+        );
+      }
+    }
+
     return circuitBreakerService.execute(
       'linkedin' as any,
       async () => {
+        const shareContent = this.buildShareContent(request);
+
         const body: Record<string, any> = {
           author: request.authorUrn,
           lifecycleState: 'PUBLISHED',
           specificContent: {
-            'com.linkedin.ugc.ShareContent': {
-              shareCommentary: { text: request.text },
-              shareMediaCategory: request.url ? 'ARTICLE' : 'NONE',
-              ...(request.url && {
-                media: [
-                  {
-                    status: 'READY',
-                    originalUrl: request.url,
-                    title: { text: request.title || '' },
-                    description: { text: request.description || '' },
-                  },
-                ],
-              }),
-            },
+            'com.linkedin.ugc.ShareContent': shareContent,
           },
           visibility: {
-            'com.linkedin.ugc.MemberNetworkVisibility':
-              request.visibility ?? 'PUBLIC',
+            'com.linkedin.ugc.MemberNetworkVisibility': request.visibility ?? 'PUBLIC',
           },
         };
 
@@ -190,6 +219,50 @@ class LinkedInService {
         throw new Error('LinkedIn API temporarily unavailable. Post has been queued for retry.');
       },
     );
+  }
+
+  /**
+   * Build the `com.linkedin.ugc.ShareContent` object for the UGC post body.
+   * Extracted for testability.
+   */
+  public buildShareContent(request: LinkedInShareRequest): Record<string, any> {
+    const commentary = { text: request.text };
+
+    // Multi-image post (IMAGE category with multiple media items)
+    if (request.mediaAssets && request.mediaAssets.length > 0) {
+      return {
+        shareCommentary: commentary,
+        shareMediaCategory: 'IMAGE',
+        media: request.mediaAssets.map((asset) => ({
+          status: 'READY',
+          originalUrl: asset.url,
+          ...(asset.title ? { title: { text: asset.title } } : {}),
+          ...(asset.description ? { description: { text: asset.description } } : {}),
+        })),
+      };
+    }
+
+    // Link share
+    if (request.url) {
+      return {
+        shareCommentary: commentary,
+        shareMediaCategory: 'ARTICLE',
+        media: [
+          {
+            status: 'READY',
+            originalUrl: request.url,
+            title: { text: request.title || '' },
+            description: { text: request.description || '' },
+          },
+        ],
+      };
+    }
+
+    // Text-only post
+    return {
+      shareCommentary: commentary,
+      shareMediaCategory: 'NONE',
+    };
   }
 
   /**

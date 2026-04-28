@@ -205,12 +205,18 @@ const socialProcessors: Record<SocialJobType, (job: Job<SocialJobData>) => Promi
         case 'linkedin': {
           const authorUrn = payload.options?.authorUrn as string;
           if (!authorUrn) throw new ValidationError('authorUrn required for LinkedIn', undefined, 'INVALID_PAYLOAD');
+          // Build mediaAssets from mediaUrls when present
+          const mediaAssets =
+            payload.mediaUrls && payload.mediaUrls.length > 0
+              ? payload.mediaUrls.map((url) => ({ url }))
+              : undefined;
           const result = await linkedInService.shareContent(token, {
             authorUrn,
             text: payload.content ?? '',
             url: payload.options?.url as string | undefined,
             title: payload.options?.title as string | undefined,
             description: payload.options?.description as string | undefined,
+            mediaAssets,
           });
           return { postId: result.id, platform, publishedAt: new Date().toISOString() };
         }
