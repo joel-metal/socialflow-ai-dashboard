@@ -51,9 +51,7 @@ const mockPrisma = {
       Promise.resolve([...memberStore.values()].filter((m) => m.userId === where.userId)),
     ),
     count: jest.fn(({ where }: any) =>
-      Promise.resolve(
-        [...memberStore.values()].filter((m) => m.userId === where.userId).length,
-      ),
+      Promise.resolve([...memberStore.values()].filter((m) => m.userId === where.userId).length),
     ),
     create: jest.fn(({ data }: any) => {
       const m = { ...data };
@@ -80,7 +78,7 @@ const mockPrisma = {
     findUnique: jest.fn(() => Promise.resolve(null)),
     update: jest.fn(() => Promise.resolve(null)),
   },
-  cohort: { findMany: jest.fn(() => Promise.resolve([]) ) },
+  cohort: { findMany: jest.fn(() => Promise.resolve([])) },
   $use: jest.fn(),
   $connect: jest.fn(),
   $disconnect: jest.fn(),
@@ -131,9 +129,7 @@ jest.mock('../../utils/cache', () => ({
 
 jest.mock('../../services/serviceFactory', () => ({
   getHealthService: jest.fn(() => ({
-    getSystemStatus: jest.fn(() =>
-      Promise.resolve({ overallStatus: 'healthy', services: {} }),
-    ),
+    getSystemStatus: jest.fn(() => Promise.resolve({ overallStatus: 'healthy', services: {} })),
   })),
   getHealthMonitor: jest.fn(() => ({ getMetrics: jest.fn(() => []) })),
   getAlertConfigService: jest.fn(() => ({
@@ -144,9 +140,7 @@ jest.mock('../../services/serviceFactory', () => ({
 
 jest.mock('../../services/healthService', () => ({
   healthService: {
-    getSystemStatus: jest.fn(() =>
-      Promise.resolve({ overallStatus: 'healthy', services: {} }),
-    ),
+    getSystemStatus: jest.fn(() => Promise.resolve({ overallStatus: 'healthy', services: {} })),
   },
 }));
 
@@ -156,10 +150,12 @@ jest.mock('../../services/DynamicConfigService', () => ({
 }));
 
 // ── Teardown: reset all in-memory stores after each test ─────────────────────
-import { UserStore } from '../../../models/User';
+import { UserStore } from '../../models/User';
+import { resetLimiters } from '../../middleware/rateLimit';
 
 afterEach(() => {
   UserStore.clear();
+  resetLimiters();
   redisStore.clear();
   orgStore.clear();
   memberStore.clear();

@@ -5,6 +5,10 @@ import { getRedisConnection } from '../config/runtime';
 // ---------------------------------------------------------------------------
 // Optional Redis store — only loaded in production to keep dev simple
 // ---------------------------------------------------------------------------
+
+/** Holds the active in-memory store instance so tests can call resetAll(). */
+let activeMemoryStore: { resetAll?: () => void } | undefined;
+
 async function buildStore() {
   try {
     // rate-limit-redis is a peer-optional dep; gracefully skip if absent
@@ -13,7 +17,8 @@ async function buildStore() {
     const client = new Redis(getRedisConnection());
     return new RedisStore({ sendCommand: (...args: string[]) => (client as any).call(...args) });
   } catch {
-    // If rate-limit-redis isn't installed or Redis is unreachable, fall back to memory store
+    // If rate-limit-redis isn't installed or Redis is unreachable, fall back to memory store.
+    // The default MemoryStore is used; capture it after limiter creation via the store option.
     return undefined;
   }
 }
@@ -45,13 +50,22 @@ function getStore() {
 
 async function createLimiter(overrides: Partial<Options>): Promise<RateLimitRequestHandler> {
   const store = await getStore();
-  return rateLimit({
+  const limiter = rateLimit({
     standardHeaders: true, // RateLimit-* headers (RFC 6585)
     legacyHeaders: false, // disable X-RateLimit-* legacy headers
     handler,
     store,
     ...overrides,
   });
+
+  // Capture the in-memory store so resetLimiters() can flush it between tests.
+  // When a Redis store is used the limiter's own store property is the Redis store;
+  // when undefined is passed rateLimit creates a MemoryStore internally.
+  if (!store && !activeMemoryStore) {
+    activeMemoryStore = (limiter as any).store as { resetAll?: () => void } | undefined;
+  }
+
+  return limiter;
 }
 
 // ---------------------------------------------------------------------------
@@ -87,4 +101,22 @@ export async function initRateLimiters(): Promise<void> {
       max: 100,
     }),
   ]);
+}
+
+/**
+ * Reset all in-memory rate-limit counters.
+ *
+ * Call this in `afterEach` (or `beforeEach`) inside test suites that exercise
+ * auth or other rate-limited endpoints so that counter state from one test
+ * case cannot cause unexpected 429 responses in subsequent cases.
+ *
+ * This is a no-op when a Redis store is active (production / staging), since
+ * those environments do not use the in-memory MemoryStore.
+ */
+export function resetLimiters(): void {
+  if (activeMemoryStore?.resetAll) {
+    activeMemoryStore.resetAll();
+  }
+  // Also reset via the limiter's own resetKey if the store reference wasn't
+  // captured (e.g. when initRateLimiters hasn't been called yet in a test).
 }
