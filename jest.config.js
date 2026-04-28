@@ -12,14 +12,15 @@ module.exports = {
         'node_modules/(?!(@scure|@noble|@otplib|otplib)/)',
       ],
       transform: {
-        '^.+\\.(ts|tsx)$': ['ts-jest', {
+        '^.+\\.(ts|tsx|js)$': ['ts-jest', {
+          diagnostics: false,
           tsconfig: {
             jsx: 'react',
             types: ['jest', 'node'],
             esModuleInterop: true,
+            allowJs: true,
           },
         }],
-        '^.+\\.js$': ['babel-jest', {}],
       },
     },
     '<rootDir>/backend',
