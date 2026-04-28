@@ -81,7 +81,10 @@ router.get('/profile', async (req: Request, res: Response) => {
  * POST /api/v1/linkedin/share
  * Publishes a UGC post on LinkedIn.
  * Header: x-linkedin-token
- * Body: { authorUrn, text, url?, title?, description?, visibility? }
+ * Body: { authorUrn, text, url?, title?, description?, visibility?, mediaAssets? }
+ *
+ * `mediaAssets` is an array of up to 20 objects: { url, title?, description? }
+ * When provided it creates a multi-image post and takes precedence over `url`.
  */
 router.post('/share', async (req: Request, res: Response) => {
   const accessToken = req.headers['x-linkedin-token'] as string;
@@ -89,13 +92,21 @@ router.post('/share', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'x-linkedin-token header required.' });
   }
 
-  const { authorUrn, text, url, title, description, visibility } = req.body;
+  const { authorUrn, text, url, title, description, visibility, mediaAssets } = req.body;
   if (!authorUrn || !text) {
     return res.status(400).json({ error: 'authorUrn and text are required.' });
   }
 
   try {
-    const shareRequest: LinkedInShareRequest = { authorUrn, text, url, title, description, visibility };
+    const shareRequest: LinkedInShareRequest = {
+      authorUrn,
+      text,
+      url,
+      title,
+      description,
+      visibility,
+      mediaAssets,
+    };
     const result = await linkedInService.shareContent(accessToken, shareRequest);
     return res.status(201).json({ success: true, postUrn: result.id });
   } catch (err) {
