@@ -28,7 +28,7 @@ interface TwoFactorUserStore {
   encryptedKey: string;      // base64 of safeStorage output
 }
 
-interface RecoveryCodeEntry { code: string; consumed: boolean; }
+interface RecoveryCodeEntry { hash: string; consumed: boolean; }
 interface RecoveryCodeData  { codes: RecoveryCodeEntry[]; }
 interface RecoveryCodeStore {
   encryptedCodes: string;
@@ -89,6 +89,33 @@ function aesDecrypt(blob: string, keyHex: string): string {
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
+}
+
+// ── Recovery code hashing (scrypt) ───────────────────────────────────────────
+
+const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1, keylen: 32 } as const;
+
+function hashRecoveryCode(plainCode: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16);
+    crypto.scrypt(plainCode, salt, SCRYPT_PARAMS.keylen, { N: SCRYPT_PARAMS.N, r: SCRYPT_PARAMS.r, p: SCRYPT_PARAMS.p }, (err, derived) => {
+      if (err) return reject(err);
+      resolve(`${salt.toString('hex')}:${derived.toString('hex')}`);
+    });
+  });
+}
+
+function checkRecoveryCode(plainCode: string, storedHash: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const [saltHex, hashHex] = storedHash.split(':');
+    if (!saltHex || !hashHex) return resolve(false);
+    const salt = Buffer.from(saltHex, 'hex');
+    const expected = Buffer.from(hashHex, 'hex');
+    crypto.scrypt(plainCode, salt, SCRYPT_PARAMS.keylen, { N: SCRYPT_PARAMS.N, r: SCRYPT_PARAMS.r, p: SCRYPT_PARAMS.p }, (err, derived) => {
+      if (err) return reject(err);
+      resolve(derived.length === expected.length && crypto.timingSafeEqual(derived, expected));
+    });
+  });
 }
 
 // ── twoFactorService ──────────────────────────────────────────────────────────
@@ -183,20 +210,22 @@ export const twoFactorService = {
 
   // ── Recovery codes ──────────────────────────────────────────────────────────
 
-  generateRecoveryCodes(): RecoveryCodeEntry[] {
+  generateRecoveryCodes(): string[] {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    return Array.from({ length: 8 }, () => ({
-      code: Array.from(crypto.randomBytes(10))
+    return Array.from({ length: 8 }, () =>
+      Array.from(crypto.randomBytes(10))
         .map(b => chars[b % chars.length])
-        .join(''),
-      consumed: false,
-    }));
+        .join('')
+    );
   },
 
-  async storeRecoveryCodes(codes: RecoveryCodeEntry[]): Promise<void> {
+  async storeRecoveryCodes(plainCodes: string[]): Promise<void> {
     const api = getElectronAPI();
     const keyHex = crypto.randomBytes(32).toString('hex');
     const encryptedKey = await api.encryptString(keyHex);
+    const codes: RecoveryCodeEntry[] = await Promise.all(
+      plainCodes.map(async code => ({ hash: await hashRecoveryCode(code), consumed: false }))
+    );
     const encryptedCodes = aesEncrypt(JSON.stringify({ codes } as RecoveryCodeData), keyHex);
     const store: RecoveryCodeStore = { encryptedCodes, encryptedKey };
     localStorage.setItem(RECOVERY_STORE_KEY, JSON.stringify(store));
@@ -210,9 +239,17 @@ export const twoFactorService = {
       const store: RecoveryCodeStore = JSON.parse(raw);
       const keyHex = await api.decryptString(store.encryptedKey);
       const data: RecoveryCodeData = JSON.parse(aesDecrypt(store.encryptedCodes, keyHex));
-      const entry = data.codes.find(c => c.code === code && !c.consumed);
-      if (!entry) return false;
-      entry.consumed = true;
+      // Find first unconsumed entry whose hash matches
+      let matchedIndex = -1;
+      for (let i = 0; i < data.codes.length; i++) {
+        const entry = data.codes[i];
+        if (!entry.consumed && await checkRecoveryCode(code, entry.hash)) {
+          matchedIndex = i;
+          break;
+        }
+      }
+      if (matchedIndex === -1) return false;
+      data.codes[matchedIndex].consumed = true;
       const newEncrypted = aesEncrypt(JSON.stringify(data), keyHex);
       localStorage.setItem(RECOVERY_STORE_KEY, JSON.stringify({ encryptedCodes: newEncrypted, encryptedKey: store.encryptedKey }));
       return true;
@@ -221,7 +258,7 @@ export const twoFactorService = {
     }
   },
 
-  async regenerateRecoveryCodes(): Promise<RecoveryCodeEntry[]> {
+  async regenerateRecoveryCodes(): Promise<string[]> {
     const codes = twoFactorService.generateRecoveryCodes();
     await twoFactorService.storeRecoveryCodes(codes);
     return codes;
