@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authLimiter, aiLimiter, generalLimiter } from '../../middleware/rateLimit';
 import { ipWhitelistMiddleware } from '../../middleware/ipWhitelist';
+import { csrfProtection } from '../../middleware/csrfProtection';
 
 // Route modules
 import authRoutes         from '../auth';
@@ -48,8 +49,8 @@ router.get('/', (_req: Request, res: Response) => {
 router.use('/health', ipWhitelistMiddleware, healthRoutes);
 router.use('/status', ipWhitelistMiddleware, statusRoutes);
 
-// ── Auth (strict limiter — brute-force protection) ────────────────────────────
-router.use('/auth', authLimiter, authRoutes);
+// ── Auth (strict limiter + CSRF origin check) ─────────────────────────────────
+router.use('/auth', authLimiter, csrfProtection, authRoutes);
 
 // ── AI / high-cost endpoints ──────────────────────────────────────────────────
 router.use('/ai',          aiLimiter, aiRoutes);
