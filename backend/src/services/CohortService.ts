@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { sqltag, empty } from '@prisma/client/runtime/library';
 import { createLogger } from '../lib/logger';
 
 const prisma = new PrismaClient();
@@ -124,10 +125,6 @@ export class CohortService {
     organizationId?: string,
     userId?: string,
   ): Promise<UserActivityStats[]> {
-    // Build optional WHERE clauses
-    const orgFilter = organizationId ? `AND om.organization_id = '${organizationId}'` : '';
-    const userFilter = userId ? `AND u.id = '${userId}'` : '';
-
     type RawRow = {
       user_id: string;
       email: string;
@@ -139,7 +136,7 @@ export class CohortService {
       days_since_last_post: number | null;
     };
 
-    const rows = await prisma.$queryRawUnsafe<RawRow[]>(`
+    const rows = (await prisma.$queryRaw(sqltag`
       SELECT
         u.id                                                        AS user_id,
         u.email,
@@ -150,11 +147,13 @@ export class CohortService {
         EXTRACT(EPOCH FROM (NOW() - u."createdAt")) / 86400         AS days_since_joined,
         EXTRACT(EPOCH FROM (NOW() - MAX(p."createdAt"))) / 86400    AS days_since_last_post
       FROM "User" u
-      LEFT JOIN "OrganizationMember" om ON om."userId" = u.id ${orgFilter}
+      LEFT JOIN "OrganizationMember" om ON om."userId" = u.id
+        ${organizationId ? sqltag`AND om.organization_id = ${organizationId}` : empty}
       LEFT JOIN "Post" p ON p."organizationId" = om."organizationId"
-      WHERE u."deletedAt" IS NULL ${userFilter}
+      WHERE u."deletedAt" IS NULL
+        ${userId ? sqltag`AND u.id = ${userId}` : empty}
       GROUP BY u.id, u.email, u.role, u."createdAt"
-    `);
+    `)) as RawRow[];
 
     return rows.map((r: RawRow) => ({
       userId: r.user_id,
