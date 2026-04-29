@@ -1,3 +1,5 @@
+import { prisma } from '../lib/prisma';
+
 export interface User {
   id: string;
   email: string;
@@ -6,28 +8,28 @@ export interface User {
   refreshTokens: string[];
 }
 
-// In-memory store (replace with a real DB in production)
-const users = new Map<string, User>();
-
 export const UserStore = {
-  findByEmail: (email: string): User | undefined =>
-    [...users.values()].find((u) => u.email === email),
+  findByEmail: (email: string): Promise<User | null> =>
+    prisma.user.findUnique({ where: { email } }),
 
-  findById: (id: string): User | undefined => users.get(id),
+  findById: (id: string): Promise<User | null> =>
+    prisma.user.findUnique({ where: { id } }),
 
-  create: (user: User): User => {
-    users.set(user.id, user);
-    return user;
-  },
+  create: (user: User): Promise<User> =>
+    prisma.user.create({
+      data: {
+        id: user.id,
+        email: user.email,
+        passwordHash: user.passwordHash,
+        createdAt: user.createdAt,
+        refreshTokens: user.refreshTokens,
+      },
+    }),
 
-  update: (id: string, patch: Partial<User>): User | undefined => {
-    const user = users.get(id);
-    if (!user) return undefined;
-    const updated = { ...user, ...patch };
-    users.set(id, updated);
-    return updated;
-  },
+  update: (id: string, patch: Partial<User>): Promise<User | null> =>
+    prisma.user.update({ where: { id }, data: patch }).catch(() => null),
 
-  /** Clear all users — intended for test teardown only. */
-  clear: (): void => users.clear(),
+  /** Delete all users — intended for test teardown only. */
+  clear: (): Promise<void> =>
+    prisma.user.deleteMany().then(() => undefined),
 };

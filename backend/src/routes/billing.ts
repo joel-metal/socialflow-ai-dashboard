@@ -39,7 +39,7 @@ const portalSchema = z.object({
  *         description: Stripe error
  */
 router.post('/provision', authMiddleware, async (req: AuthRequest, res: Response) => {
-  const user = UserStore.findById(req.userId!);
+  const user = await UserStore.findById(req.userId!);
   if (!user) return res.status(404).json({ message: 'User not found' });
 
   try {

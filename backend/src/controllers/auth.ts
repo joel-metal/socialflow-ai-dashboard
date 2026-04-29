@@ -33,13 +33,13 @@ function signRefresh(userId: string): string {
 export async function register(req: Request, res: Response): Promise<void> {
   const { email, password } = req.body as { email: string; password: string };
 
-  if (UserStore.findByEmail(email)) {
+  if (await UserStore.findByEmail(email)) {
     res.status(409).json({ message: 'Email already registered' });
     return;
   }
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-  const user = UserStore.create({
+  const user = await UserStore.create({
     id: randomUUID(),
     email,
     passwordHash,
@@ -49,7 +49,7 @@ export async function register(req: Request, res: Response): Promise<void> {
 
   const accessToken = signAccess(user.id);
   const refreshToken = signRefresh(user.id);
-  UserStore.update(user.id, { refreshTokens: [refreshToken] });
+  await UserStore.update(user.id, { refreshTokens: [refreshToken] });
 
   auditLogger.log({
     actorId: user.id,
@@ -63,7 +63,7 @@ export async function register(req: Request, res: Response): Promise<void> {
 export async function login(req: Request, res: Response): Promise<void> {
   const { email, password } = req.body as { email: string; password: string };
 
-  const user = UserStore.findByEmail(email);
+  const user = await UserStore.findByEmail(email);
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     res.status(401).json({ message: 'Invalid credentials' });
     return;
@@ -74,7 +74,7 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   const accessToken = signAccess(user.id);
   const refreshToken = signRefresh(user.id);
-  UserStore.update(user.id, { refreshTokens: [...user.refreshTokens, refreshToken] });
+  await UserStore.update(user.id, { refreshTokens: [...user.refreshTokens, refreshToken] });
 
   auditLogger.log({
     actorId: user.id,
@@ -96,7 +96,7 @@ export async function refresh(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const user = UserStore.findById(payload.sub as string);
+  const user = await UserStore.findById(payload.sub as string);
   if (!user || !user.refreshTokens.includes(refreshToken)) {
     res.status(401).json({ message: 'Refresh token revoked' });
     return;
@@ -109,7 +109,7 @@ export async function refresh(req: Request, res: Response): Promise<void> {
 
   // Rotate refresh token
   const newRefresh = signRefresh(user.id);
-  UserStore.update(user.id, {
+  await UserStore.update(user.id, {
     refreshTokens: [...user.refreshTokens.filter((t) => t !== refreshToken), newRefresh],
   });
 
@@ -127,9 +127,9 @@ export async function logout(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const user = UserStore.findById(payload.sub as string);
+  const user = await UserStore.findById(payload.sub as string);
   if (user) {
-    UserStore.update(user.id, {
+    await UserStore.update(user.id, {
       refreshTokens: user.refreshTokens.filter((t) => t !== refreshToken),
     });
     auditLogger.log({

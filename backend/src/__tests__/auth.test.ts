@@ -253,8 +253,8 @@ describe('UserStore', () => {
     expect(UserStore.findByEmail('store@example.com')).toEqual(user);
   });
 
-  it('updates a user', () => {
-    UserStore.create({
+  it('updates a user', async () => {
+    await UserStore.create({
       id: 'upd-id',
       email: 'upd@example.com',
       passwordHash: 'hash',
@@ -262,12 +262,12 @@ describe('UserStore', () => {
       refreshTokens: [],
     });
 
-    const updated = UserStore.update('upd-id', { refreshTokens: ['tok'] });
+    const updated = await UserStore.update('upd-id', { refreshTokens: ['tok'] });
     expect(updated?.refreshTokens).toContain('tok');
   });
 
-  it('returns undefined for unknown id', () => {
-    expect(UserStore.findById('ghost')).toBeUndefined();
+  it('returns undefined for unknown id', async () => {
+    expect(await UserStore.findById('ghost')).toBeNull();
   });
 });
 
