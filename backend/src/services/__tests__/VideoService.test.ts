@@ -10,7 +10,7 @@ describe('VideoService', () => {
       expect(jobId).toBeDefined();
       expect(typeof jobId).toBe('string');
 
-      const job = videoService.getJob(jobId);
+      const job = await videoService.getJob(jobId);
       expect(job).toBeDefined();
       expect(job?.inputPath).toBe(mockInputPath);
       expect(job?.status).toBe('pending');
@@ -25,7 +25,7 @@ describe('VideoService', () => {
       };
 
       const jobId = await videoService.createTranscodingJob(mockInputPath, options);
-      const job = videoService.getJob(jobId);
+      const job = await videoService.getJob(jobId);
 
       expect(job?.qualities).toHaveLength(1);
       expect(job?.qualities[0].name).toBe('720p');
@@ -35,8 +35,8 @@ describe('VideoService', () => {
   });
 
   describe('getJob', () => {
-    it('should return undefined for non-existent job', () => {
-      const job = videoService.getJob('non-existent-id');
+    it('should return undefined for non-existent job', async () => {
+      const job = await videoService.getJob('non-existent-id');
       expect(job).toBeUndefined();
     });
   });
@@ -46,7 +46,7 @@ describe('VideoService', () => {
       const jobId1 = await videoService.createTranscodingJob('/path/to/video1.mp4');
       const jobId2 = await videoService.createTranscodingJob('/path/to/video2.mp4');
 
-      const allJobs = videoService.getAllJobs();
+      const allJobs = await videoService.getAllJobs();
       expect(allJobs.length).toBeGreaterThanOrEqual(2);
 
       const jobIds = allJobs.map((job) => job.id);

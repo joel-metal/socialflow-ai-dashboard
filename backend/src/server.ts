@@ -9,6 +9,7 @@ import { queueManager, closeRedisClient } from './queues/queueManager';
 import { startDataPruningJob, stopDataPruningJob } from './jobs/dataPruningJob';
 import { startYouTubeSyncJob, stopYouTubeSyncJob } from './jobs/youtubeSyncJob';
 import { startTikTokVideoWorker } from './jobs/tiktokVideoJob';
+import { startVideoWorker } from './services/VideoService';
 import { startTwitterWebhookWorker } from './queues/twitterWebhookQueue';
 import { startWorkerMonitor, stopWorkerMonitor } from './monitoring/workerMonitorInstance';
 import { startHealthMonitoringJob, stopHealthMonitoringJob } from './jobs/healthMonitoringJob';
@@ -289,6 +290,16 @@ export const bootstrap = async (exit?: (code: number) => void): Promise<void> =>
       logger.info('TikTok video worker started');
     } catch (error) {
       logger.error('Failed to start TikTok video worker', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    // Start video transcoding worker
+    try {
+      startVideoWorker();
+      logger.info('Video transcoding worker started');
+    } catch (error) {
+      logger.error('Failed to start video transcoding worker', {
         error: error instanceof Error ? error.message : String(error),
       });
     }
